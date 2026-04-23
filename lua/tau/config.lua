@@ -53,11 +53,6 @@ local defaults = {
 	show_thinking = false,
 	expand_startup_details = true,
 
-	attention = {
-		auto_open_on_prompt_focus = true,
-		notify_on_completion = true,
-	},
-
 	dialog = {
 		border = "rounded",
 		max_width = 0.8,

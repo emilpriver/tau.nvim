@@ -5,6 +5,14 @@ local api = require("tau.api")
 
 local MAX_TOOL_ITERATIONS = 20
 
+local function count_tool_calls(tool_calls)
+	local count = 0
+	for _ in pairs(tool_calls) do
+		count = count + 1
+	end
+	return count
+end
+
 function M.run_turn(provider_name, messages, opts)
 	opts = opts or {}
 	local on_tool_start = opts.on_tool_start or function() end
@@ -37,11 +45,20 @@ function M.run_turn(provider_name, messages, opts)
 			vim.notify(string.format("Compacted: freed %d tokens", saved), vim.log.levels.INFO)
 		end
 
-		local result = api.call(provider_name, current_messages, {
+		local ok, result = pcall(api.call, provider_name, current_messages, {
 			tools = tools.get_tool_list(),
 			thinking_level = opts.thinking_level,
 			max_tokens = opts.max_tokens,
 		})
+
+		if not ok then
+			vim.notify("API error: " .. tostring(result), vim.log.levels.ERROR)
+			return {
+				text = "Error: " .. tostring(result),
+				tool_iterations = iteration - 1,
+				messages = current_messages,
+			}
+		end
 
 		local has_tool_calls = #result.tool_uses > 0
 
@@ -118,7 +135,6 @@ function M.run_turn_streaming(provider_name, messages, opts)
 	local on_thinking = opts.on_thinking or function() end
 	local on_done = opts.on_done or function() end
 
-	local current_messages = vim.deepcopy(messages)
 	local iteration = 0
 
 	local function do_turn()
@@ -127,7 +143,7 @@ function M.run_turn_streaming(provider_name, messages, opts)
 		local context = require("tau.context")
 		local model = opts.model or require("tau.config").get().provider.model
 
-		local should_warn, tokens, limit, ratio = context.should_warn(current_messages, model)
+		local should_warn, tokens, limit, ratio = context.should_warn(messages, model)
 		if should_warn then
 			vim.notify(
 				string.format("Context at %.0f%% (%d / %d tokens)", ratio * 100, tokens, limit),
@@ -135,11 +151,11 @@ function M.run_turn_streaming(provider_name, messages, opts)
 			)
 		end
 
-		local should_compact = context.should_compact(current_messages, model)
+		local should_compact = context.should_compact(messages, model)
 		if should_compact then
 			vim.notify("Auto-compacting context...", vim.log.levels.INFO)
-			local compacted, saved = context.compact(current_messages, opts.instructions, provider_name)
-			current_messages = compacted
+			local compacted, saved = context.compact(messages, opts.instructions, provider_name)
+			messages = compacted
 			vim.notify(string.format("Compacted: freed %d tokens", saved), vim.log.levels.INFO)
 		end
 
@@ -168,7 +184,7 @@ function M.run_turn_streaming(provider_name, messages, opts)
 					tool_calls[id].input_str = tool_calls[id].input_str .. input
 				end
 			elseif name then
-				local new_id = "tool_call_" .. #tool_calls + 1
+				local new_id = "tool_call_" .. count_tool_calls(tool_calls) + 1
 				tool_calls[new_id] = { name = name, input_str = "", id = new_id }
 				if type(input) == "string" then
 					tool_calls[new_id].input_str = tool_calls[new_id].input_str .. input
@@ -179,61 +195,65 @@ function M.run_turn_streaming(provider_name, messages, opts)
 		local done = false
 
 		local function on_stream_done()
-			if not done then
-				done = true
+			if done then
+				return
+			end
+			done = true
 
-				for id, tc in pairs(tool_calls) do
-					local parsed_input = {}
-					if tc.input_str and tc.input_str ~= "" then
-						local ok, parsed = pcall(vim.json.decode, tc.input_str)
-						if ok then
-							parsed_input = parsed
-						end
-					end
-					on_tool_start(tc.name, parsed_input, id)
-
-					local result = tools.execute(tc.name, parsed_input)
-					local is_error = result.error ~= nil
-					local content = is_error and result.error or result.text
-
-					on_tool_result(id, tc.name, result, is_error)
-
-					local assistant_msg = {
-						role = "assistant",
-						tool_calls = {
-							{
-								id = id,
-								["function"] = {
-									name = tc.name,
-									arguments = tc.input_str,
-								},
+			if text_response ~= "" or thinking_response ~= "" or count_tool_calls(tool_calls) > 0 then
+				local assistant_msg = {
+					role = "assistant",
+					content = text_response ~= "" and text_response or nil,
+				}
+				if thinking_response ~= "" then
+					assistant_msg.thinking = thinking_response
+				end
+				if count_tool_calls(tool_calls) > 0 then
+					assistant_msg.tool_calls = {}
+					for id, tc in pairs(tool_calls) do
+						table.insert(assistant_msg.tool_calls, {
+							id = id,
+							["function"] = {
+								name = tc.name,
+								arguments = tc.input_str,
 							},
-						},
-					}
-					if text_response ~= "" then
-						assistant_msg.content = text_response
+						})
 					end
-					if thinking_response ~= "" then
-						assistant_msg.reasoning = thinking_response
+				end
+				table.insert(messages, assistant_msg)
+			end
+
+			for id, tc in pairs(tool_calls) do
+				local parsed_input = {}
+				if tc.input_str and tc.input_str ~= "" then
+					local ok, parsed = pcall(vim.json.decode, tc.input_str)
+					if ok then
+						parsed_input = parsed
 					end
-					table.insert(current_messages, assistant_msg)
-
-					table.insert(current_messages, {
-						role = "tool",
-						tool_call_id = id,
-						content = content,
-					})
 				end
+				on_tool_start(tc.name, parsed_input, id)
 
-				if #tool_calls > 0 then
-					vim.schedule(do_turn)
-				else
-					on_done()
-				end
+				local result = tools.execute(tc.name, parsed_input)
+				local is_error = result.error ~= nil
+				local content = is_error and result.error or result.text
+
+				on_tool_result(id, tc.name, result, is_error)
+
+				table.insert(messages, {
+					role = "tool",
+					tool_call_id = id,
+					content = content,
+				})
+			end
+
+			if count_tool_calls(tool_calls) > 0 then
+				vim.schedule(do_turn)
+			else
+				on_done()
 			end
 		end
 
-		api.stream(provider_name, current_messages, {
+		local stream_ok, stream_err = pcall(api.stream, provider_name, messages, {
 			tools = tools.get_tool_list(),
 			thinking_level = opts.thinking_level,
 			max_tokens = opts.max_tokens,
@@ -246,6 +266,11 @@ function M.run_turn_streaming(provider_name, messages, opts)
 				on_done()
 			end,
 		})
+
+		if not stream_ok then
+			vim.notify("Failed to start stream: " .. tostring(stream_err), vim.log.levels.ERROR)
+			on_done()
+		end
 	end
 
 	vim.schedule(do_turn)

@@ -3,328 +3,306 @@ local M = {}
 local config = require("tau.config")
 
 function M.setup(opts)
-  opts = opts or {}
-  config.setup(opts)
-  require("tau.plugin").init({ plugins = opts.plugins })
+	opts = opts or {}
+	config.setup(opts)
+	require("tau.plugin").init({ plugins = opts.plugins })
 end
 
 function M.show(opts)
-  require("tau.ui").open(opts)
+	require("tau.ui").open(opts)
 end
 
 function M.toggle(opts)
-  require("tau.ui").toggle(opts)
+	require("tau.ui").toggle(opts)
 end
 
 function M.close()
-  require("tau.ui").close()
+	require("tau.ui").close()
 end
 
 function M.focus_history()
-  require("tau.ui").focus_history()
+	require("tau.ui").focus_history()
 end
 
 function M.focus_prompt()
-  require("tau.ui").focus_prompt()
+	require("tau.ui").focus_prompt()
 end
 
 function M.scroll_history(direction, lines)
-  require("tau.ui").scroll_history(direction, lines)
+	require("tau.ui").scroll_history(direction, lines)
 end
 
 function M.scroll_history_to_bottom()
-  require("tau.ui").scroll_history_to_bottom()
+	require("tau.ui").scroll_history_to_bottom()
 end
 
 function M.stop()
-  require("tau.rpc").stop()
+	require("tau.rpc").stop()
 end
 
 function M.abort()
-  require("tau.rpc").abort()
+	require("tau.rpc").abort()
 end
 
 function M.new_session()
-  local state = require("tau.state")
-  local agents = require("tau.agents")
-  local config = require("tau.config").get()
+	local state = require("tau.state")
+	local agents = require("tau.agents")
+	local tauConfig = require("tau.config").get()
 
-  local session = state.create_session({
-    cwd = vim.fn.getcwd(),
-    provider = config.provider.name,
-    model = config.provider.model,
-  })
+	local session = state.create_session({
+		cwd = vim.fn.getcwd(),
+		provider = tauConfig.provider.name,
+		model = tauConfig.provider.model,
+	})
 
-  local system_prompt = agents.build_system_prompt(session.cwd, session.provider)
-  if system_prompt then
-    table.insert(session.messages, {
-      role = "system",
-      content = system_prompt,
-    })
-  end
+	local system_prompt = agents.build_system_prompt(session.cwd, session.provider)
+	if system_prompt then
+		table.insert(session.messages, {
+			role = "system",
+			content = system_prompt,
+		})
+	end
 
-  state.set_session(nil, session)
-  vim.notify("New session started", vim.log.levels.INFO)
+	state.set_session(nil, session)
+	vim.notify("New session started", vim.log.levels.INFO)
 end
 
 function M.continue_session()
-  require("tau.session").load_most_recent(vim.fn.getcwd())
+	require("tau.session").load_most_recent(vim.fn.getcwd())
 end
 
 function M.resume_session()
-  require("tau.session").list_sessions(vim.fn.getcwd())
+	require("tau.session").list_sessions(vim.fn.getcwd())
 end
 
 function M.compact(instructions)
-  local state = require("tau.state")
-  local context = require("tau.context")
-  local session = state.get_session()
+	local state = require("tau.state")
+	local context = require("tau.context")
+	local session = state.get_session()
 
-  if not session or #session.messages == 0 then
-    vim.notify("No active session to compact", vim.log.levels.WARN)
-    return
-  end
+	if not session or #session.messages == 0 then
+		vim.notify("No active session to compact", vim.log.levels.WARN)
+		return
+	end
 
-  local provider = session.provider or require("tau.config").get().provider.name
-  local before = context.count_messages_tokens(session.messages)
+	local provider = session.provider or require("tau.config").get().provider.name
+	local before = context.count_messages_tokens(session.messages)
 
-  vim.notify("Compacting session context...", vim.log.levels.INFO)
+	vim.notify("Compacting session context...", vim.log.levels.INFO)
 
-  local compacted, saved = context.compact(session.messages, instructions, provider)
-  session.messages = compacted
-  session.compacted_count = (session.compacted_count or 0) + 1
-  state.update_session_tokens()
+	local compacted, saved = context.compact(session.messages, instructions, provider)
+	session.messages = compacted
+	session.compacted_count = (session.compacted_count or 0) + 1
+	state.update_session_tokens()
 
-  local after = context.count_messages_tokens(session.messages)
-  vim.notify(
-    string.format("Compacted: %d → %d tokens (freed %d)", before, after, before - after),
-    vim.log.levels.INFO
-  )
+	local after = context.count_messages_tokens(session.messages)
+	vim.notify(
+		string.format("Compacted: %d → %d tokens (freed %d)", before, after, before - after),
+		vim.log.levels.INFO
+	)
 end
 
 function M.select_model()
-  require("tau.models").select()
-  M.sync_session_model()
+	require("tau.models").select()
+	M.sync_session_model()
 end
 
 function M.cycle_model()
-  require("tau.models").cycle()
-  M.sync_session_model()
+	require("tau.models").cycle()
+	M.sync_session_model()
 end
 
 function M.sync_session_model()
-  local session = require("tau.state").get_session()
-  if session then
-    session.model = require("tau.models").get_active()
-  end
-end
-
-function M.focus_history()
-  error("not implemented — Phase 4")
-end
-
-function M.focus_prompt()
-  error("not implemented — Phase 4")
-end
-
-function M.focus_attachments()
-  error("not implemented — Phase 4")
-end
-
-function M.scroll_history(direction, lines)
-  error("not implemented — Phase 4")
-end
-
-function M.toggle_thinking()
-  error("not implemented — Phase 4")
+	local session = require("tau.state").get_session()
+	if session then
+		session.model = require("tau.models").get_active()
+	end
 end
 
 function M.cycle_thinking_level()
-  require("tau.models").cycle_thinking_level()
+	require("tau.models").cycle_thinking_level()
 end
 
 function M.select_thinking_level()
-  require("tau.models").select_thinking_level()
+	require("tau.models").select_thinking_level()
 end
 
 function M.get_thinking_level()
-  return require("tau.models").get_thinking_level()
+	return require("tau.models").get_thinking_level()
 end
 
 function M.get_provider()
-  return require("tau.api").get_provider_info()
+	return require("tau.api").get_provider_info()
 end
 
 function M.stream(messages, opts)
-  local provider = require("tau.config").get().provider.name
-  return require("tau.api").stream(provider, messages, opts)
+	local provider = require("tau.config").get().provider.name
+	return require("tau.api").stream(provider, messages, opts)
 end
 
 function M.call(messages, opts)
-  local provider = require("tau.config").get().provider.name
-  return require("tau.api").call(provider, messages, opts)
+	local provider = require("tau.config").get().provider.name
+	return require("tau.api").call(provider, messages, opts)
 end
 
 function M.refresh_models()
-  require("tau.models").refresh()
+	require("tau.models").refresh()
 end
 
 function M.login(provider_name)
-  local auth = require("tau.auth")
-  local info = auth.PROVIDER_HELP[provider_name]
+	local auth = require("tau.auth")
+	local info = auth.PROVIDER_HELP[provider_name]
 
-  if not info then
-    vim.notify("Unknown provider: " .. provider_name .. ". Supported: " .. table.concat(vim.tbl_keys(auth.PROVIDER_HELP), ", "), vim.log.levels.ERROR)
-    return
-  end
+	if not info then
+		vim.notify(
+			"Unknown provider: "
+				.. provider_name
+				.. ". Supported: "
+				.. table.concat(vim.tbl_keys(auth.PROVIDER_HELP), ", "),
+			vim.log.levels.ERROR
+		)
+		return
+	end
 
-  vim.ui.input({
-    prompt = info.prompt .. "\nGenerate a key at: " .. info.key_url .. "\n\nAPI key: ",
-  }, function(key)
-    if not key or key == "" then
-      return
-    end
-    if auth.set_key(provider_name, key) then
-      vim.notify(provider_name .. " credentials saved to " .. auth.get_auth_path(), vim.log.levels.INFO)
-    else
-      vim.notify("Failed to save credentials", vim.log.levels.ERROR)
-    end
-  end)
+	vim.ui.input({
+		prompt = info.prompt .. "\nGenerate a key at: " .. info.key_url .. "\n\nAPI key: ",
+	}, function(key)
+		if not key or key == "" then
+			return
+		end
+		if auth.set_key(provider_name, key) then
+			vim.notify(provider_name .. " credentials saved to " .. auth.get_auth_path(), vim.log.levels.INFO)
+		else
+			vim.notify("Failed to save credentials", vim.log.levels.ERROR)
+		end
+	end)
 end
 
 function M.logout(provider_name)
-  local auth = require("tau.auth")
+	local auth = require("tau.auth")
 
-  if provider_name then
-    if auth.remove_key(provider_name) then
-      vim.notify(provider_name .. " credentials removed", vim.log.levels.INFO)
-    else
-      vim.notify("No credentials found for " .. provider_name, vim.log.levels.WARN)
-    end
-    return
-  end
+	if provider_name then
+		if auth.remove_key(provider_name) then
+			vim.notify(provider_name .. " credentials removed", vim.log.levels.INFO)
+		else
+			vim.notify("No credentials found for " .. provider_name, vim.log.levels.WARN)
+		end
+		return
+	end
 
-  local providers = auth.list_providers()
-  if #providers == 0 then
-    vim.notify("No stored credentials", vim.log.levels.INFO)
-    return
-  end
+	local providers = auth.list_providers()
+	if #providers == 0 then
+		vim.notify("No stored credentials", vim.log.levels.INFO)
+		return
+	end
 
-  vim.ui.select(providers, {
-    prompt = "Remove credentials for:",
-  }, function(choice)
-    if choice then
-      auth.remove_key(choice)
-      vim.notify(choice .. " credentials removed", vim.log.levels.INFO)
-    end
-  end)
+	vim.ui.select(providers, {
+		prompt = "Remove credentials for:",
+	}, function(choice)
+		if choice then
+			auth.remove_key(choice)
+			vim.notify(choice .. " credentials removed", vim.log.levels.INFO)
+		end
+	end)
 end
 
 function M.show_agents()
-  local agents = require("tau.agents")
-  local files = agents.list_loaded_files()
+	local agents = require("tau.agents")
+	local files = agents.list_loaded_files()
 
-  if #files == 0 then
-    vim.notify("No agent files loaded. Create ~/.agents/AGENTS.md or .agents/AGENTS.md", vim.log.levels.INFO)
-    return
-  end
+	if #files == 0 then
+		vim.notify("No agent files loaded. Create ~/.agents/AGENTS.md or .agents/AGENTS.md", vim.log.levels.INFO)
+		return
+	end
 
-  local lines = { "Loaded agent files:", "" }
-  for _, f in ipairs(files) do
-    local scope = f.scope == "global" and "[global]" or "[project]"
-    table.insert(lines, string.format("  %s %s — %s", scope, f.name, f.path))
-  end
+	local lines = { "Loaded agent files:", "" }
+	for _, f in ipairs(files) do
+		local scope = f.scope == "global" and "[global]" or "[project]"
+		table.insert(lines, string.format("  %s %s — %s", scope, f.name, f.path))
+	end
 
-  vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+	vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
 end
 
 function M.list_logins()
-  local auth = require("tau.auth")
-  local providers = auth.list_providers()
-  if #providers == 0 then
-    vim.notify("No stored credentials", vim.log.levels.INFO)
-    return
-  end
-  vim.notify("Stored providers: " .. table.concat(providers, ", "), vim.log.levels.INFO)
+	local auth = require("tau.auth")
+	local providers = auth.list_providers()
+	if #providers == 0 then
+		vim.notify("No stored credentials", vim.log.levels.INFO)
+		return
+	end
+	vim.notify("Stored providers: " .. table.concat(providers, ", "), vim.log.levels.INFO)
 end
 
 function M.send_mention()
-  local mention = require("tau.ui.complete").send_mention_for_buffer()
-  if mention then
-    local ui = require("tau.ui")
-    if not ui.active then
-      M.show()
-    end
-    ui.focus_prompt()
-    local lines = vim.api.nvim_buf_get_lines(ui.active.prompt_buf, 0, -1, false)
-    if #lines > 0 and lines[#lines] ~= "" then
-      table.insert(lines, mention)
-    else
-      lines[#lines] = mention
-    end
-    vim.api.nvim_buf_set_lines(ui.active.prompt_buf, 0, -1, false, lines)
-  end
+	local mention = require("tau.ui.complete").send_mention_for_buffer()
+	if mention then
+		local ui = require("tau.ui")
+		if not ui.active then
+			M.show()
+		end
+		ui.focus_prompt()
+		local lines = vim.api.nvim_buf_get_lines(ui.active.prompt_buf, 0, -1, false)
+		if #lines > 0 and lines[#lines] ~= "" then
+			table.insert(lines, mention)
+		else
+			lines[#lines] = mention
+		end
+		vim.api.nvim_buf_set_lines(ui.active.prompt_buf, 0, -1, false, lines)
+	end
 end
 
 function M.attach_image(path)
-  local att = require("tau.attachments")
-  local result, err = att.attach_file(path)
-  if not result then
-    vim.notify(err, vim.log.levels.ERROR)
-    return nil
-  end
-  return result
+	local att = require("tau.attachments")
+	local result, err = att.attach_file(path)
+	if not result then
+		vim.notify(err, vim.log.levels.ERROR)
+		return nil
+	end
+	return result
 end
 
 function M.paste_image()
-  error("not implemented — requires img-clip.nvim integration")
+	error("not implemented — requires img-clip.nvim integration")
 end
 
 function M.build_user_message(text, attachments)
-  local provider = require("tau.config").get().provider.name
-  return require("tau.attachments").build_user_message(text, attachments, provider)
-end
-
-function M.invoke(command)
-  error("not implemented — Phase 9")
-end
-
-function M.attention()
-  error("not implemented — Phase 8")
+	local provider = require("tau.config").get().provider.name
+	return require("tau.attachments").build_user_message(text, attachments, provider)
 end
 
 function M.attention_count(tab_id)
-  return 0
+	return 0
 end
 
 function M.attention_total()
-  return 0
+	return 0
 end
 
 function M.has_attention(tab_id)
-  return false
+	return false
 end
 
 function M.changed_files()
-  return require("tau.tools").get_changed_files()
+	return require("tau.tools").get_changed_files()
 end
 
 function M.run_turn(messages, opts)
-  local provider = require("tau.config").get().provider.name
-  return require("tau.dispatcher").run_turn(provider, messages, opts)
+	local provider = require("tau.config").get().provider.name
+	return require("tau.dispatcher").run_turn(provider, messages, opts)
 end
 
 function M.run_turn_streaming(messages, opts)
-  local provider = require("tau.config").get().provider.name
-  return require("tau.dispatcher").run_turn_streaming(provider, messages, opts)
+	local provider = require("tau.config").get().provider.name
+	return require("tau.dispatcher").run_turn_streaming(provider, messages, opts)
 end
 
 function M.get_tool_list()
-  return require("tau.tools").get_tool_list()
+	return require("tau.tools").get_tool_list()
 end
 
 function M.register_provider(plugin_module)
-  require("tau.plugin").register_provider(plugin_module)
+	require("tau.plugin").register_provider(plugin_module)
 end
 
 return M

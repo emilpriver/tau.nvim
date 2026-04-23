@@ -202,6 +202,44 @@ function M.start_turn()
 	M.start_busy()
 
 	local provider = session.provider or require("tau.config").get().provider.name
+	local streaming_text = ""
+	local streaming_header_added = false
+
+	local function ensure_streaming_header()
+		if streaming_header_added or not M.active then
+			return
+		end
+		streaming_header_added = true
+		local buf = M.active.hist_buf
+		local label = M.active.config.labels.agent_response
+		local ts = require("tau.ui.history").format_timestamp()
+		vim.bo[buf].modifiable = true
+		local count = vim.api.nvim_buf_line_count(buf)
+		vim.api.nvim_buf_set_lines(buf, count, count, false, {
+			string.format("%s %s", label, ts),
+			"",
+		})
+		vim.bo[buf].modifiable = false
+	end
+
+	local function append_streaming_chunk(chunk)
+		if not M.active then
+			return
+		end
+		ensure_streaming_header()
+		local buf = M.active.hist_buf
+		local lines = vim.split(chunk, "\n")
+		if #lines == 0 then
+			return
+		end
+		vim.bo[buf].modifiable = true
+		local count = vim.api.nvim_buf_line_count(buf)
+		local last_line = vim.api.nvim_buf_get_lines(buf, count - 1, count, false)[1] or ""
+		lines[1] = last_line .. lines[1]
+		vim.api.nvim_buf_set_lines(buf, count - 1, count, false, lines)
+		vim.bo[buf].modifiable = false
+		require("tau.ui.history").scroll_to_bottom(buf, M.active.layout_state.history)
+	end
 
 	require("tau.dispatcher").run_turn_streaming(provider, session.messages, {
 		model = session.model,
@@ -210,6 +248,8 @@ function M.start_turn()
 			if not M.active then
 				return
 			end
+			streaming_text = streaming_text .. chunk
+			append_streaming_chunk(chunk)
 		end,
 		on_thinking = function(chunk)
 			if not M.active then
@@ -225,6 +265,21 @@ function M.start_turn()
 			if not M.active then
 				return
 			end
+		end,
+		on_error = function(err)
+			if not M.active then
+				return
+			end
+			local buf = M.active.hist_buf
+			vim.bo[buf].modifiable = true
+			local count = vim.api.nvim_buf_line_count(buf)
+			vim.api.nvim_buf_set_lines(buf, count, count, false, {
+				"",
+				"  Error: " .. err:gsub("\n", " "):sub(1, 200),
+				"",
+			})
+			vim.bo[buf].modifiable = false
+			M.finish_turn()
 		end,
 		on_done = function()
 			M.finish_turn()

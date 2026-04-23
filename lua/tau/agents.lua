@@ -220,13 +220,6 @@ Available tools:
 - write: Write or overwrite a file
 - edit: Apply text replacements to a file
 - bash: Execute shell commands
-
-Guidelines:
-- Use clear, concise language
-- When editing files, prefer the edit tool over write for small changes
-- Always validate your work by reading files before and after edits
-- Ask for clarification when requirements are ambiguous
-- Report errors clearly with context
 ]]
 end
 

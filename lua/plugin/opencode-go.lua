@@ -31,11 +31,10 @@ local function build_body(model, messages, opts)
 	local body = {
 		model = model,
 		messages = messages,
-		max_completion_tokens = opts.max_tokens or 4096,
+		max_tokens = opts.max_tokens or 4096,
 	}
 	if opts.stream then
 		body.stream = true
-		body.stream_options = { include_usage = true }
 	end
 	if opts.tools and #opts.tools > 0 then
 		body.tools = M.format_tools(opts.tools)
@@ -116,23 +115,25 @@ function M.stream(api_key, base_url, model, messages, opts)
 	local json_body = vim.json.encode(body)
 	local url = base_url .. (M.chat_endpoint or "/chat/completions")
 
-	local header_args = {}
+	local curl_cmd = { "curl", url, "--no-buffer", "-s", "-S" }
 	for _, h in ipairs(build_headers(api_key)) do
-		vim.list_extend(header_args, h)
+		vim.list_extend(curl_cmd, h)
 	end
-
-	vim.list_extend(header_args, {
-		{ "-H", "content-type: application/json" },
-		{ "-d", json_body },
-	})
-
-	local curl_cmd = { "curl", url, "--no-buffer", "-s" }
-	vim.list_extend(curl_cmd, header_args)
+	vim.list_extend(curl_cmd, { "-H", "content-type: application/json" })
+	vim.list_extend(curl_cmd, { "-d", json_body })
 
 	local buffer = ""
+	local event_count = 0
+	local stderr_lines = {}
 
-	local function process_chunk(raw)
-		if not raw or raw == "" then
+	local done_called = false
+
+	local function process_chunk(err, raw)
+		if err then
+			table.insert(stderr_lines, tostring(err))
+			return
+		end
+		if not raw then
 			return
 		end
 		buffer = buffer .. raw
@@ -141,6 +142,7 @@ function M.stream(api_key, base_url, model, messages, opts)
 		local all_done = false
 
 		for _, event in ipairs(events) do
+			event_count = event_count + 1
 			if event.data == "[DONE]" then
 				all_done = true
 				break
@@ -150,9 +152,21 @@ function M.stream(api_key, base_url, model, messages, opts)
 				local success, parsed = pcall(vim.json.decode, event.data)
 				if success and parsed then
 					handle_stream_event(parsed, {
-						on_chunk = on_chunk,
-						on_thinking = on_thinking,
-						on_tool_use = on_tool_use,
+						on_chunk = function(text)
+							vim.schedule(function()
+								on_chunk(text)
+							end)
+						end,
+						on_thinking = function(text)
+							vim.schedule(function()
+								on_thinking(text)
+							end)
+						end,
+						on_tool_use = function(name, args, id)
+							vim.schedule(function()
+								on_tool_use(name, args, id)
+							end)
+						end,
 					})
 				end
 			end
@@ -160,18 +174,68 @@ function M.stream(api_key, base_url, model, messages, opts)
 
 		buffer = sse_parser.remaining(buffer)
 
-		if all_done then
+		if all_done and not done_called then
+			done_called = true
 			vim.schedule(on_done)
 		end
 	end
 
-	local handle = vim.system(curl_cmd, { text = true, stdout = process_chunk }, function(result)
-		if result.code ~= 0 and result.stderr and result.stderr ~= "" then
-			vim.schedule(function()
-				on_error(result.stderr)
-			end)
+	local stderr_handler = function(err, data)
+		if data and data ~= "" then
+			table.insert(stderr_lines, data)
 		end
-		vim.schedule(on_done)
+	end
+
+	local handle = vim.system(curl_cmd, { text = true, stdout = process_chunk, stderr = stderr_handler }, function(result)
+		if result.code ~= 0 then
+			local err_msg = table.concat(stderr_lines, "\n")
+			if err_msg == "" then
+				err_msg = "HTTP request failed (code " .. result.code .. ")"
+			end
+			vim.schedule(function()
+				on_error(err_msg)
+			end)
+			if not done_called then
+				done_called = true
+				vim.schedule(on_done)
+			end
+			return
+		end
+
+		if event_count == 0 and buffer ~= "" then
+			-- No SSE events parsed -- likely a non-streaming or error response
+			local ok, parsed = pcall(vim.json.decode, buffer)
+			if ok and parsed then
+				if parsed.error then
+					local err_msg = "API error"
+					if type(parsed.error) == "table" then
+						err_msg = parsed.error.message or parsed.error.code or vim.json.encode(parsed.error)
+					else
+						err_msg = tostring(parsed.error)
+					end
+					vim.schedule(function()
+						on_error(err_msg)
+					end)
+					if not done_called then
+						done_called = true
+						vim.schedule(on_done)
+					end
+					return
+				end
+				-- Non-streaming response parsed as JSON -- try to emit it
+				local text = parsed.choices and parsed.choices[1] and parsed.choices[1].message and parsed.choices[1].message.content or ""
+				if text ~= "" then
+					vim.schedule(function()
+						on_chunk(text)
+					end)
+				end
+			end
+		end
+
+		if not done_called then
+			done_called = true
+			vim.schedule(on_done)
+		end
 	end)
 
 	return handle
@@ -188,28 +252,41 @@ function M.call(api_key, base_url, model, messages, opts)
 	local json_body = vim.json.encode(body)
 	local url = base_url .. (M.chat_endpoint or "/chat/completions")
 
-	local header_args = {}
+	local curl_cmd = { "curl", url, "-s", "-S" }
 	for _, h in ipairs(build_headers(api_key)) do
-		vim.list_extend(header_args, h)
+		vim.list_extend(curl_cmd, h)
 	end
-
-	vim.list_extend(header_args, {
-		{ "-H", "content-type: application/json" },
-		{ "-d", json_body },
-	})
-
-	local curl_cmd = { "curl", url, "-s" }
-	vim.list_extend(curl_cmd, header_args)
+	vim.list_extend(curl_cmd, { "-H", "content-type: application/json" })
+	vim.list_extend(curl_cmd, { "-d", json_body })
 
 	local result = vim.system(curl_cmd, { text = true }):wait()
 
 	if result.code ~= 0 then
-		error("API error: " .. (result.stderr or "unknown"))
+		local err = result.stderr or "unknown"
+		if result.stdout and result.stdout ~= "" then
+			local ok, parsed = pcall(vim.json.decode, result.stdout)
+			if ok and parsed and parsed.error then
+				err = err .. "\n" .. vim.json.encode(parsed.error)
+			else
+				err = err .. "\n" .. result.stdout:sub(1, 500)
+			end
+		end
+		error("API error: " .. err)
 	end
 
 	local success, response = pcall(vim.json.decode, result.stdout)
 	if not success then
 		error("Failed to parse API response: " .. result.stdout)
+	end
+
+	if response.error then
+		local err = "API error"
+		if type(response.error) == "table" then
+			err = response.error.message or response.error.code or vim.json.encode(response.error)
+		else
+			err = tostring(response.error)
+		end
+		error(err)
 	end
 
 	return parse_response(response)
@@ -222,18 +299,22 @@ function M.list_models(api_key, base_url)
 
 	local url = base_url .. M.models_endpoint
 
-	local header_args = {}
+	local curl_cmd = { "curl", url, "-s", "-S" }
 	for _, h in ipairs(build_headers(api_key)) do
-		vim.list_extend(header_args, h)
+		vim.list_extend(curl_cmd, h)
 	end
-
-	local curl_cmd = { "curl", url, "-s" }
-	vim.list_extend(curl_cmd, header_args)
 
 	local result = vim.system(curl_cmd, { text = true }):wait()
 
 	if result.code ~= 0 then
 		return {}
+	end
+
+	if result.stdout and result.stdout ~= "" then
+		local ok, parsed = pcall(vim.json.decode, result.stdout)
+		if ok and parsed and parsed.error then
+			return {}
+		end
 	end
 
 	local success, response = pcall(vim.json.decode, result.stdout)
