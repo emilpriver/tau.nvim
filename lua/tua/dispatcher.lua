@@ -35,6 +35,10 @@ function M.run_turn(provider_name, messages, opts)
     end
 
     if not has_tool_calls then
+      table.insert(current_messages, {
+        role = "assistant",
+        content = result.text,
+      })
       return {
         text = result.text,
         thinking = result.thinking,
@@ -43,6 +47,22 @@ function M.run_turn(provider_name, messages, opts)
         usage = result.usage,
       }
     end
+
+    local assistant_msg = {
+      role = "assistant",
+      content = result.text ~= "" and result.text or nil,
+      tool_calls = {},
+    }
+    for _, tool_use in ipairs(result.tool_uses) do
+      table.insert(assistant_msg.tool_calls, {
+        id = tool_use.id,
+        function = {
+          name = tool_use.name,
+          arguments = vim.json.encode(tool_use.input),
+        },
+      })
+    end
+    table.insert(current_messages, assistant_msg)
 
     for _, tool_use in ipairs(result.tool_uses) do
       on_tool_start(tool_use.name, tool_use.input, tool_use.id)
@@ -179,6 +199,28 @@ function M.run_turn_streaming(provider_name, messages, opts)
               content = content,
             }
           end
+
+          local tc = tool_calls[id]
+          local assistant_msg = {
+            role = "assistant",
+            tool_calls = {
+              {
+                id = id,
+                call_id = id,
+                function = {
+                  name = tc.name,
+                  arguments = tc.input_str,
+                },
+              },
+            },
+          }
+          if text_response ~= "" then
+            assistant_msg.content = text_response
+          end
+          if thinking_response ~= "" then
+            assistant_msg.reasoning = thinking_response
+          end
+          table.insert(current_messages, assistant_msg)
           table.insert(current_messages, result_msg)
         end
 

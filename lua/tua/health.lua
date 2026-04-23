@@ -35,7 +35,6 @@ local function check_provider_config()
     anthropic = "ANTHROPIC_API_KEY",
     openai = "OPENAI_API_KEY",
     cursor = "CURSOR_API_KEY",
-    ["openai-compatible"] = "OPENAI_API_KEY",
   }
 
   local auth = require("tua.auth")

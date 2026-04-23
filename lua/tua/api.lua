@@ -20,7 +20,7 @@ local PROVIDER_CONFIG = {
   openai = {
     api_key_env = "OPENAI_API_KEY",
     base_url = "https://api.openai.com",
-    chat_endpoint = "/v1/chat/completions",
+    chat_endpoint = "/v1/responses",
     models_endpoint = "/v1/models",
     headers = function(api_key)
       return {
@@ -29,24 +29,11 @@ local PROVIDER_CONFIG = {
     end,
     default_model = "gpt-4.1",
   },
-  ["openai-compatible"] = {
-    api_key_env = "OPENAI_API_KEY",
-    base_url = nil,
-    chat_endpoint = "/v1/chat/completions",
-    models_endpoint = "/v1/models",
-    headers = function(api_key)
-      return {
-        { "-H", "Authorization: Bearer " .. api_key },
-      }
-    end,
-    default_model = nil,
-  },
   cursor = {
     api_key_env = "CURSOR_API_KEY",
     base_url = "https://api2.cursor.sh",
     chat_endpoint = "/aiserver.v1.AIServerService/ChatCompletion",
     models_endpoint = nil,
-    openai_compat = true,
     headers = function(api_key)
       return {
         { "-H", "Authorization: Bearer " .. api_key },
@@ -142,7 +129,7 @@ function M.stream(provider_name, messages, opts)
       if event.data and event.data ~= "" then
         local success, parsed = pcall(vim.json.decode, event.data)
         if success and parsed then
-          M.handle_stream_event(provider_name, parsed, on_chunk, on_tool_use, on_thinking)
+          M.handle_stream_event(provider_name, parsed, event, on_chunk, on_tool_use, on_thinking)
         end
       end
     end
@@ -205,8 +192,11 @@ function M.build_request_body(provider_name, messages, opts)
 
   if provider_name == "anthropic" then
     return M.build_anthropic_body(model, messages, opts)
+  elseif provider_name == "openai" then
+    return M.build_openai_responses_body(model, messages, opts)
+  else
+    return M.build_openai_chat_body(model, messages, opts)
   end
-  return M.build_openai_body(model, messages, opts)
 end
 
 function M.build_anthropic_body(model, messages, opts)
@@ -245,7 +235,92 @@ function M.build_anthropic_body(model, messages, opts)
   return body
 end
 
-function M.build_openai_body(model, messages, opts)
+local function to_text(content)
+  if type(content) == "string" then
+    return content
+  end
+  if type(content) == "table" then
+    local parts = {}
+    for _, item in ipairs(content) do
+      if item.type == "text" or item.type == "input_text" or item.type == "output_text" then
+        table.insert(parts, item.text)
+      end
+    end
+    return table.concat(parts, "\n")
+  end
+  return ""
+end
+
+function M.build_openai_responses_body(model, messages, opts)
+  local instructions = nil
+  local input = {}
+
+  for _, msg in ipairs(messages) do
+    if msg.role == "system" then
+      if instructions then
+        instructions = instructions .. "\n\n" .. msg.content
+      else
+        instructions = msg.content
+      end
+    elseif msg.role == "user" then
+      table.insert(input, {
+        type = "message",
+        role = "user",
+        content = { { type = "input_text", text = to_text(msg.content) } },
+      })
+    elseif msg.role == "assistant" then
+      if msg.tool_calls then
+        for _, tc in ipairs(msg.tool_calls) do
+          local call_id = tc.id or tc.call_id
+          local args = tc.function.arguments
+          if type(args) == "table" then
+            args = vim.json.encode(args)
+          end
+          table.insert(input, {
+            type = "function_call",
+            call_id = call_id,
+            name = tc.function.name,
+            arguments = args or "{}",
+          })
+        end
+      elseif msg.content and msg.content ~= "" then
+        table.insert(input, {
+          type = "message",
+          role = "assistant",
+          content = { { type = "output_text", text = to_text(msg.content) } },
+        })
+      end
+    elseif msg.role == "tool" then
+      table.insert(input, {
+        type = "function_call_output",
+        call_id = msg.tool_call_id,
+        output = to_text(msg.content),
+      })
+    end
+  end
+
+  local body = {
+    model = model,
+    input = input,
+    max_output_tokens = opts.max_output_tokens or opts.max_tokens or 4096,
+  }
+
+  if instructions then
+    body.instructions = instructions
+  end
+
+  if opts.tools and #opts.tools > 0 then
+    body.tools = M.format_openai_responses_tools(opts.tools)
+  end
+
+  if opts.thinking_level and opts.thinking_level ~= "off" then
+    body.reasoning = { effort = opts.thinking_level }
+  end
+
+  return body
+end
+
+function M.build_openai_chat_body(model, messages, opts)
   local body = {
     model = model,
     messages = messages,
@@ -253,7 +328,7 @@ function M.build_openai_body(model, messages, opts)
   }
 
   if opts.tools and #opts.tools > 0 then
-    body.tools = M.format_openai_tools(opts.tools)
+    body.tools = M.format_openai_chat_tools(opts.tools)
   end
 
   if opts.thinking_level and opts.thinking_level ~= "off" then
@@ -275,7 +350,7 @@ function M.format_anthropic_tools(tools)
   return formatted
 end
 
-function M.format_openai_tools(tools)
+function M.format_openai_chat_tools(tools)
   local formatted = {}
   for _, tool in ipairs(tools) do
     table.insert(formatted, {
@@ -285,6 +360,19 @@ function M.format_openai_tools(tools)
         description = tool.description,
         parameters = tool.parameters,
       },
+    })
+  end
+  return formatted
+end
+
+function M.format_openai_responses_tools(tools)
+  local formatted = {}
+  for _, tool in ipairs(tools) do
+    table.insert(formatted, {
+      type = "function",
+      name = tool.name,
+      description = tool.description,
+      parameters = tool.parameters,
     })
   end
   return formatted
@@ -301,11 +389,13 @@ function M.thinking_budget(level)
   return budgets[level] or 4096
 end
 
-function M.handle_stream_event(provider_name, data, on_chunk, on_tool_use, on_thinking)
+function M.handle_stream_event(provider_name, data, raw_event, on_chunk, on_tool_use, on_thinking)
   if provider_name == "anthropic" then
     M.handle_anthropic_event(data, on_chunk, on_tool_use, on_thinking)
+  elseif provider_name == "openai" then
+    M.handle_openai_responses_event(data, raw_event, on_chunk, on_tool_use, on_thinking)
   else
-    M.handle_openai_event(data, on_chunk, on_tool_use, on_thinking)
+    M.handle_openai_chat_event(data, on_chunk, on_tool_use, on_thinking)
   end
 end
 
@@ -333,7 +423,34 @@ function M.handle_anthropic_event(data, on_chunk, on_tool_use, on_thinking)
   end
 end
 
-function M.handle_openai_event(data, on_chunk, on_tool_use, on_thinking)
+function M.handle_openai_responses_event(data, raw_event, on_chunk, on_tool_use, on_thinking)
+  local event_type = raw_event.event
+
+  if event_type == "response.output_text.delta" then
+    local delta = data.delta
+    if delta then
+      on_chunk(delta)
+    end
+  elseif event_type == "response.output_item.added" then
+    local item = data.item
+    if item and item.type == "function_call" then
+      on_tool_use(item.name, "", item.call_id)
+    elseif item and item.type == "reasoning" then
+      on_thinking("")
+    end
+  elseif event_type == "response.function_call_arguments.delta" then
+    local delta = data.delta
+    if delta then
+      on_tool_use(nil, delta, nil)
+    end
+  elseif event_type == "response.output_text.done" then
+  elseif event_type == "response.function_call_arguments.done" then
+  elseif event_type == "response.completed" then
+  elseif event_type == "response.failed" then
+  end
+end
+
+function M.handle_openai_chat_event(data, on_chunk, on_tool_use, on_thinking)
   local choices = data.choices
   if not choices or #choices == 0 then
     return
@@ -363,8 +480,11 @@ end
 function M.parse_response(provider_name, response)
   if provider_name == "anthropic" then
     return M.parse_anthropic_response(response)
+  elseif provider_name == "openai" then
+    return M.parse_openai_responses_response(response)
+  else
+    return M.parse_openai_chat_response(response)
   end
-  return M.parse_openai_response(response)
 end
 
 function M.parse_anthropic_response(response)
@@ -394,7 +514,54 @@ function M.parse_anthropic_response(response)
   }
 end
 
-function M.parse_openai_response(response)
+function M.parse_openai_responses_response(response)
+  local text = ""
+  local thinking = ""
+  local tool_uses = {}
+
+  for _, item in ipairs(response.output or {}) do
+    if item.type == "message" then
+      for _, content in ipairs(item.content or {}) do
+        if content.type == "output_text" then
+          text = text .. content.text
+        end
+      end
+    elseif item.type == "reasoning" then
+      local summary = item.summary
+      if summary then
+        thinking = thinking .. summary
+      end
+      for _, content in ipairs(item.content or {}) do
+        if content.text then
+          thinking = thinking .. content.text
+        end
+      end
+    elseif item.type == "function_call" then
+      local args = item.arguments
+      local input = {}
+      if args and args ~= "" then
+        local success, parsed = pcall(vim.json.decode, args)
+        if success then
+          input = parsed
+        end
+      end
+      table.insert(tool_uses, {
+        id = item.call_id,
+        name = item.name,
+        input = input,
+      })
+    end
+  end
+
+  return {
+    text = text,
+    thinking = thinking,
+    tool_uses = tool_uses,
+    usage = response.usage,
+  }
+end
+
+function M.parse_openai_chat_response(response)
   local choice = response.choices and response.choices[1]
   if not choice then
     return { text = "", thinking = "", tool_uses = {}, usage = response.usage }
@@ -455,6 +622,8 @@ function M.list_models(provider_name)
   if not provider_cfg.models_endpoint then
     return {}
   end
+
+  local url = base_url .. provider_cfg.models_endpoint
 
   local header_args = {}
   for _, h in ipairs(provider_cfg.headers(api_key)) do
