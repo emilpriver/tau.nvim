@@ -21,7 +21,7 @@ function M.setup_highlights()
     TauAssistantMessage = { link = "Normal", default = true },
     TauToolBlock = { link = "Comment", default = true },
     TauToolError = { link = "DiagnosticError", default = true },
-    TauThinkingBlock = { link = "DiagnosticHint", default = true },
+    TauThinkingBlock = { link = "Comment", default = true },
     TauSystemMessage = { link = "DiagnosticWarn", default = true },
     TauTimestamp = { link = "LineNr", default = true },
     TauSeparator = { link = "WinSeparator", default = true },
@@ -225,6 +225,13 @@ function M.render_startup_info(session, config)
   if session then
     table.insert(lines, string.format("  Model: %s", session.model or "default"))
     table.insert(lines, string.format("  Provider: %s", session.provider or "default"))
+  end
+
+  local current_buf = vim.api.nvim_get_current_buf()
+  local buf_name = vim.api.nvim_buf_get_name(current_buf)
+  if buf_name and buf_name ~= "" then
+    buf_name = vim.fn.fnamemodify(buf_name, ":~:.")
+    table.insert(lines, string.format("  File: %s", buf_name))
   end
 
   if #files > 0 then

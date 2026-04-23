@@ -70,6 +70,8 @@ function M.set_keymaps(buf, callbacks)
       callbacks.on_zen()
     end
   end, vim.tbl_extend("force", opts, { desc = "Toggle zen mode" }))
+
+
 end
 
 function M.set_completefunc(buf)

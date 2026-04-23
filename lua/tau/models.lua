@@ -115,7 +115,7 @@ function M.cycle()
   M.set(list[idx])
 end
 
-function M.select()
+function M.select(on_selected)
   if #available_models == 0 then
     M.refresh()
   end
@@ -141,6 +141,9 @@ function M.select()
     if choice then
       local model_id = list[idx]
       M.set(model_id)
+      if on_selected then
+        on_selected(model_id)
+      end
     end
   end)
 end

@@ -103,8 +103,9 @@ function M.compact(instructions)
 end
 
 function M.select_model()
-	require("tau.models").select()
-	M.sync_session_model()
+	require("tau.models").select(function()
+		M.sync_session_model()
+	end)
 end
 
 function M.cycle_model()
@@ -117,6 +118,7 @@ function M.sync_session_model()
 	if session then
 		session.model = require("tau.models").get_active()
 	end
+	require("tau.ui").refresh_winbar()
 end
 
 function M.cycle_thinking_level()
@@ -129,6 +131,17 @@ end
 
 function M.get_thinking_level()
 	return require("tau.models").get_thinking_level()
+end
+
+function M.toggle_thinking()
+	local cfg = require("tau.config").get()
+	cfg.show_thinking = not cfg.show_thinking
+	local status = cfg.show_thinking and "on" or "off"
+	vim.notify("Thinking display: " .. status, vim.log.levels.INFO)
+	local ui = require("tau.ui")
+	if ui.active then
+		ui.refresh()
+	end
 end
 
 function M.get_provider()

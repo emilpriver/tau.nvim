@@ -134,6 +134,47 @@ M.tools = {
       },
     },
   },
+  grep = {
+    name = "grep",
+    description = "Search file contents for a pattern. Returns matching lines with file paths and line numbers. Respects .gitignore. Output is truncated to 100 matches or 50KB (whichever is hit first). Long lines are truncated to 500 chars.",
+    parameters = {
+      type = "object",
+      properties = {
+        pattern = { type = "string", description = "Search pattern (regex or literal string)" },
+        path = { type = "string", description = "Directory or file to search (default: current directory)" },
+        glob = { type = "string", description = "Filter files by glob pattern, e.g. '*.ts' or '**/*.spec.ts'" },
+        ignoreCase = { type = "boolean", description = "Case-insensitive search (default: false)" },
+        literal = { type = "boolean", description = "Treat pattern as literal string instead of regex (default: false)" },
+        context = { type = "number", description = "Number of lines to show before and after each match (default: 0)" },
+        limit = { type = "number", description = "Maximum number of matches to return (default: 100)" },
+      },
+      required = { "pattern" },
+    },
+  },
+  find = {
+    name = "find",
+    description = "Search for files by glob pattern. Returns matching file paths relative to the search directory. Respects .gitignore. Output is truncated to 1000 results or 50KB (whichever is hit first).",
+    parameters = {
+      type = "object",
+      properties = {
+        pattern = { type = "string", description = "Glob pattern to match files, e.g. '*.ts', '**/*.json', or 'src/**/*.spec.ts'" },
+        path = { type = "string", description = "Directory to search in (default: current directory)" },
+        limit = { type = "number", description = "Maximum number of results (default: 1000)" },
+      },
+      required = { "pattern" },
+    },
+  },
+  ls = {
+    name = "ls",
+    description = "List directory contents. Returns entries sorted alphabetically, with '/' suffix for directories. Includes dotfiles. Output is truncated to 500 entries or 50KB (whichever is hit first).",
+    parameters = {
+      type = "object",
+      properties = {
+        path = { type = "string", description = "Directory to list (default: current directory)" },
+        limit = { type = "number", description = "Maximum number of entries to return (default: 500)" },
+      },
+    },
+  },
 }
 
 local function resolve_path(path)
@@ -419,6 +460,202 @@ function M.tree_tool(input)
   }
 end
 
+function M.grep_tool(input)
+  local pattern = input.pattern
+  if not pattern or pattern == "" then
+    return { error = "No pattern provided" }
+  end
+
+  local search_path = input.path and resolve_path(input.path) or vim.fn.getcwd()
+  local effective_limit = input.limit or 100
+  local context_lines = input.context or 0
+
+  local rg_cmd = { "rg", "--json", "--line-number", "--color=never", "--hidden" }
+  if input.ignoreCase then
+    table.insert(rg_cmd, "--ignore-case")
+  end
+  if input.literal then
+    table.insert(rg_cmd, "--fixed-strings")
+  end
+  if input.glob then
+    table.insert(rg_cmd, "--glob")
+    table.insert(rg_cmd, input.glob)
+  end
+  if context_lines > 0 then
+    table.insert(rg_cmd, "--context")
+    table.insert(rg_cmd, tostring(context_lines))
+  end
+  table.insert(rg_cmd, pattern)
+  table.insert(rg_cmd, search_path)
+
+  local ok, result = pcall(function()
+    return vim.system(rg_cmd, { text = true }):wait()
+  end)
+
+  if not ok then
+    return { error = "ripgrep (rg) is not available. Install it to use the grep tool." }
+  end
+
+  if result.code ~= 0 and result.code ~= 1 then
+    return { error = result.stderr or "ripgrep failed" }
+  end
+
+  local output_lines = {}
+  local match_count = 0
+  local file_cache = {}
+
+  for line in (result.stdout or ""):gmatch("[^\n]+") do
+    if match_count >= effective_limit then
+      break
+    end
+    local success, event = pcall(vim.json.decode, line)
+    if success and event and event.type == "match" then
+      match_count = match_count + 1
+      local file_path = event.data and event.data.path and event.data.path.text or ""
+      local line_num = event.data and event.data.line_number or 0
+      local line_text = event.data and event.data.lines and event.data.lines.text or ""
+      line_text = line_text:gsub("\r?\n", ""):gsub("\r", "")
+      if line_text:len() > 500 then
+        line_text = line_text:sub(1, 500) .. "..."
+      end
+      local rel_path = vim.fn.fnamemodify(file_path, ":~:.")
+      table.insert(output_lines, string.format("%s:%d: %s", rel_path, line_num, line_text))
+    end
+  end
+
+  if #output_lines == 0 then
+    return { text = "No matches found" }
+  end
+
+  local output = table.concat(output_lines, "\n")
+  local truncated = truncate_output(output)
+  local out = { text = truncated, matches = match_count }
+  if truncated ~= output then
+    out.truncated = true
+  end
+  if match_count >= effective_limit then
+    out.limit_reached = effective_limit
+  end
+  return out
+end
+
+function M.find_tool(input)
+  local pattern = input.pattern
+  if not pattern or pattern == "" then
+    return { error = "No pattern provided" }
+  end
+
+  local search_path = input.path and resolve_path(input.path) or vim.fn.getcwd()
+  local effective_limit = input.limit or 1000
+
+  local fd_cmd = { "fd", "--glob", "--color=never", "--hidden", "--no-require-git", "--max-results", tostring(effective_limit) }
+  if pattern:find("/") then
+    table.insert(fd_cmd, "--full-path")
+    if not pattern:match("^/") and not pattern:match("^%*%*/") and pattern ~= "**" then
+      pattern = "**/" .. pattern
+    end
+  end
+  table.insert(fd_cmd, pattern)
+  table.insert(fd_cmd, search_path)
+
+  local ok, result = pcall(function()
+    return vim.system(fd_cmd, { text = true }):wait()
+  end)
+
+  if not ok then
+    local find_cmd = { "find", search_path, "-name", input.pattern, "-type", "f" }
+    ok, result = pcall(function()
+      return vim.system(find_cmd, { text = true }):wait()
+    end)
+    if not ok then
+      return { error = "Neither fd nor find is available. Install fd or find to use the find tool." }
+    end
+  end
+
+  if result.code ~= 0 and result.code ~= 1 then
+    return { error = result.stderr or "find command failed" }
+  end
+
+  local lines = {}
+  for line in (result.stdout or ""):gmatch("[^\n]+") do
+    line = line:gsub("\r$", "")
+    line = line:gsub("^%s*(.-)%s*$", "%1")
+    if line ~= "" then
+      local rel = vim.fn.fnamemodify(line, ":~:.")
+      table.insert(lines, rel)
+    end
+  end
+
+  if #lines == 0 then
+    return { text = "No files found matching pattern" }
+  end
+
+  local output = table.concat(lines, "\n")
+  local truncated = truncate_output(output)
+  local out = { text = truncated, files = #lines }
+  if truncated ~= output then
+    out.truncated = true
+  end
+  if #lines >= effective_limit then
+    out.limit_reached = effective_limit
+  end
+  return out
+end
+
+function M.ls_tool(input)
+  local dir_path = input.path and resolve_path(input.path) or vim.fn.getcwd()
+  local effective_limit = input.limit or 500
+
+  if vim.fn.isdirectory(dir_path) == 0 then
+    return { error = "Not a directory: " .. dir_path }
+  end
+
+  local uv = vim.uv or vim.loop
+  local handle = uv.fs_scandir(dir_path)
+  if not handle then
+    return { error = "Cannot read directory: " .. dir_path }
+  end
+
+  local entries = {}
+  while true do
+    local name, typ = uv.fs_scandir_next(handle)
+    if not name then
+      break
+    end
+    table.insert(entries, { name = name, type = typ })
+  end
+
+  table.sort(entries, function(a, b)
+    return a.name:lower() < b.name:lower()
+  end)
+
+  local results = {}
+  local entry_limit_reached = false
+  for _, entry in ipairs(entries) do
+    if #results >= effective_limit then
+      entry_limit_reached = true
+      break
+    end
+    local suffix = entry.type == "directory" and "/" or ""
+    table.insert(results, entry.name .. suffix)
+  end
+
+  if #results == 0 then
+    return { text = "(empty directory)" }
+  end
+
+  local output = table.concat(results, "\n")
+  local truncated = truncate_output(output)
+  local out = { text = truncated, entries = #results }
+  if truncated ~= output then
+    out.truncated = true
+  end
+  if entry_limit_reached then
+    out.limit_reached = effective_limit
+  end
+  return out
+end
+
 local buffer_tools = require("tau.tools.buffers")
 
 local TOOL_MAP = {
@@ -427,6 +664,9 @@ local TOOL_MAP = {
   edit = M.edit_tool,
   bash = M.bash_tool,
   tree = M.tree_tool,
+  grep = M.grep_tool,
+  find = M.find_tool,
+  ls = M.ls_tool,
   open_buffers = buffer_tools.open_buffers_tool,
   read_buffer = buffer_tools.read_buffer_tool,
   edit_buffer = buffer_tools.edit_buffer_tool,

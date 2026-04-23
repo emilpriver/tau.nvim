@@ -5,6 +5,7 @@ local LAYOUT_NS = vim.api.nvim_create_namespace("tau_layout")
 function M.create_side(config)
   local position = config.layout.side.position
   local width = config.layout.side.width
+  local original_win = vim.api.nvim_get_current_win()
 
   vim.cmd("vsplit")
   local win = vim.api.nvim_get_current_win()
@@ -26,6 +27,7 @@ function M.create_side(config)
     prompt = prompt_win,
     layout = "side",
     main = win,
+    original_win = original_win,
   }
 end
 
@@ -35,6 +37,7 @@ function M.create_float(config)
   local height = math.floor(vim.o.lines * float_cfg.height)
   local col = math.floor((vim.o.columns - width) / 2)
   local row = math.floor((vim.o.lines - height) / 2)
+  local original_win = vim.api.nvim_get_current_win()
 
   local buf = vim.api.nvim_create_buf(false, true)
   local win = vim.api.nvim_open_win(buf, true, {
@@ -61,6 +64,7 @@ function M.create_float(config)
     layout = "float",
     main = win,
     float_buf = buf,
+    original_win = original_win,
   }
 end
 

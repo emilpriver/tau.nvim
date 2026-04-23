@@ -4,7 +4,6 @@ local GLOBAL_AGENTS_DIR = vim.fn.expand("~/.agents")
 
 local AGENT_FILENAMES = {
 	"AGENTS.md",
-	"CLAUDE.md",
 }
 
 local SYSTEM_FILENAMES = {
@@ -127,26 +126,14 @@ function M.load_context(cwd)
 	local project = M.load_project(cwd)
 
 	local agents_parts = {}
-	local claude_parts = {}
 
 	for _, filename in ipairs(AGENT_FILENAMES) do
-		if filename == "AGENTS.md" then
-			if global[filename] then
-				table.insert(agents_parts, global[filename].content)
-			end
-			if project[filename] then
-				for _, item in ipairs(project[filename]) do
-					table.insert(agents_parts, item.content)
-				end
-			end
-		elseif filename == "CLAUDE.md" then
-			if global[filename] then
-				table.insert(claude_parts, global[filename].content)
-			end
-			if project[filename] then
-				for _, item in ipairs(project[filename]) do
-					table.insert(claude_parts, item.content)
-				end
+		if global[filename] then
+			table.insert(agents_parts, global[filename].content)
+		end
+		if project[filename] then
+			for _, item in ipairs(project[filename]) do
+				table.insert(agents_parts, item.content)
 			end
 		end
 	end
@@ -180,7 +167,6 @@ function M.load_context(cwd)
 		global = global,
 		project = project,
 		agents = #agents_parts > 0 and table.concat(agents_parts, "\n\n") or nil,
-		claude = #claude_parts > 0 and table.concat(claude_parts, "\n\n") or nil,
 		system = system,
 		append = append,
 	}
@@ -200,9 +186,7 @@ function M.build_system_prompt(cwd, provider_name)
 		table.insert(parts, ctx.agents)
 	end
 
-	if ctx.claude then
-		table.insert(parts, ctx.claude)
-	end
+
 
 	if ctx.append then
 		table.insert(parts, ctx.append)
@@ -216,10 +200,20 @@ function M.default_system_prompt()
 You are a coding agent operating inside Neovim. You help users by reading files, executing commands, editing code, and writing new files.
 
 Available tools:
-- read: Read file contents
-- write: Write or overwrite a file
-- edit: Apply text replacements to a file
-- bash: Execute shell commands
+- read: Read file contents (supports offset/limit for large files, images as attachments)
+- write: Write or overwrite a file (creates parent directories automatically)
+- edit: Apply exact text replacements to a file (multiple disjoint edits in one call)
+- bash: Execute shell commands (output truncated to last 2000 lines or 50KB)
+- grep: Search file contents with regex or literal patterns (uses ripgrep, respects .gitignore)
+- find: Search for files by glob pattern (uses fd, respects .gitignore)
+- ls: List directory contents (sorted alphabetically, '/' suffix for directories)
+- tree: List files and folders recursively with tree-like output
+- open_buffers: List all open Neovim buffers (bufnr, name, modified status, filetype)
+- read_buffer: Read contents of an open buffer by bufnr (supports offset/limit)
+- edit_buffer: Edit an open buffer with exact text replacement (via Neovim API)
+- goto_buffer: Switch the user's view to a specific buffer
+
+Prefer grep/find/ls over bash for file discovery. Use edit for precise changes, write for new files or complete rewrites. When editing buffers, prefer edit_buffer over write to preserve unsaved changes.
 ]]
 end
 

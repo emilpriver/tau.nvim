@@ -5,12 +5,29 @@ local api = require("tau.api")
 
 local MAX_TOOL_ITERATIONS = 20
 
+local active_stream_handle = nil
+local cancelled = false
+
 local function count_tool_calls(tool_calls)
 	local count = 0
 	for _ in pairs(tool_calls) do
 		count = count + 1
 	end
 	return count
+end
+
+function M.stop()
+	cancelled = true
+	if active_stream_handle and active_stream_handle.kill then
+		pcall(function()
+			active_stream_handle:kill(9)
+		end)
+	end
+	active_stream_handle = nil
+end
+
+function M.is_running()
+	return active_stream_handle ~= nil
 end
 
 function M.run_turn(provider_name, messages, opts)
@@ -263,22 +280,50 @@ function M.run_turn_streaming(provider_name, messages, opts)
 			end
 		end
 
+		cancelled = false
 		local stream_ok, stream_err = pcall(api.stream, provider_name, messages, {
 			tools = tools.get_tool_list(),
 			thinking_level = opts.thinking_level,
 			max_tokens = opts.max_tokens,
-			on_chunk = on_chunk,
-			on_thinking = on_think,
-			on_tool_use = on_tool,
-			on_done = on_stream_done,
+			on_chunk = function(text)
+				if cancelled then
+					return
+				end
+				on_chunk(text)
+			end,
+			on_thinking = function(text)
+				if cancelled then
+					return
+				end
+				on_thinking(text)
+			end,
+			on_tool_use = function(name, args, id)
+				if cancelled then
+					return
+				end
+				on_tool(name, args, id)
+			end,
+			on_done = function()
+				active_stream_handle = nil
+				if cancelled then
+					return
+				end
+				on_stream_done()
+			end,
 			on_error = function(err)
+				active_stream_handle = nil
+				if cancelled then
+					return
+				end
 				vim.schedule(function()
 					on_error(err)
 				end)
 			end,
 		})
 
-		if not stream_ok then
+		if stream_ok then
+			active_stream_handle = stream_err
+		else
 			vim.schedule(function()
 				on_error(tostring(stream_err))
 			end)
