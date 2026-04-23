@@ -145,7 +145,23 @@ function M.logout(provider_name)
   end)
 end
 
-function M.list_logins()
+function M.show_agents()
+  local agents = require("tua.agents")
+  local files = agents.list_loaded_files()
+
+  if #files == 0 then
+    vim.notify("No agent files loaded. Create ~/.agents/AGENTS.md or .agents/AGENTS.md", vim.log.levels.INFO)
+    return
+  end
+
+  local lines = { "Loaded agent files:", "" }
+  for _, f in ipairs(files) do
+    local scope = f.scope == "global" and "[global]" or "[project]"
+    table.insert(lines, string.format("  %s %s — %s", scope, f.name, f.path))
+  end
+
+  vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+end
   local auth = require("tua.auth")
   local providers = auth.list_providers()
   if #providers == 0 then

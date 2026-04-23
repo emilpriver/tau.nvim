@@ -76,3 +76,7 @@ end, { nargs = "?", desc = "Remove stored credentials" })
 cmd("TauListLogins", function()
 	require("tua").list_logins()
 end, { nargs = 0, desc = "List stored provider logins" })
+
+cmd("TauAgents", function()
+	require("tua").show_agents()
+end, { nargs = 0, desc = "Show loaded agent context files" })
