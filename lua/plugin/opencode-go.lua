@@ -45,6 +45,16 @@ local function build_body(model, messages, opts)
 	return body
 end
 
+local function get_string(val)
+	if val == nil or val == vim.NIL then
+		return nil
+	end
+	if type(val) == "string" then
+		return val
+	end
+	return nil
+end
+
 local function handle_stream_event(data, callbacks)
 	local choices = data.choices
 	if not choices or #choices == 0 then
@@ -54,17 +64,23 @@ local function handle_stream_event(data, callbacks)
 	if not delta then
 		return
 	end
-	if delta.content then
-		callbacks.on_chunk(delta.content)
+	local content = get_string(delta.content)
+	if content then
+		callbacks.on_chunk(content)
 	end
-	local reasoning = delta.reasoning_content or delta.reasoning or delta.reasoning_text
+	local reasoning = get_string(delta.reasoning_content) or get_string(delta.reasoning) or get_string(delta.reasoning_text)
 	if reasoning then
 		callbacks.on_thinking(reasoning)
 	end
 	if delta.tool_calls and #delta.tool_calls > 0 then
 		local tc = delta.tool_calls[1]
 		if tc and tc["function"] then
-			callbacks.on_tool_use(tc["function"].name, tc["function"].arguments, tc.id)
+			local name = get_string(tc["function"].name)
+			local args = get_string(tc["function"].arguments)
+			local id = get_string(tc.id)
+			if name then
+				callbacks.on_tool_use(name, args or "", id)
+			end
 		end
 	end
 end
@@ -75,12 +91,12 @@ local function parse_response(response)
 		return { text = "", thinking = "", tool_uses = {}, usage = response.usage }
 	end
 	local message = choice.message
-	local text = message.content or ""
-	local thinking = message.reasoning or ""
+	local text = get_string(message.content) or ""
+	local thinking = get_string(message.reasoning) or ""
 	local tool_uses = {}
 	if message.tool_calls then
 		for _, tc in ipairs(message.tool_calls) do
-			local args = tc["function"] and tc["function"].arguments or "{}"
+			local args = tc["function"] and get_string(tc["function"].arguments) or "{}"
 			local input = {}
 			if args and args ~= "" then
 				local ok, parsed = pcall(vim.json.decode, args)
@@ -89,8 +105,8 @@ local function parse_response(response)
 				end
 			end
 			table.insert(tool_uses, {
-				id = tc.id,
-				name = tc["function"] and tc["function"].name or "",
+				id = get_string(tc.id),
+				name = tc["function"] and get_string(tc["function"].name) or "",
 				input = input,
 			})
 		end
