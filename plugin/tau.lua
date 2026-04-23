@@ -5,9 +5,16 @@ vim.g.tau_loaded = true
 
 local cmd = vim.api.nvim_create_user_command
 
-cmd("Tau", function()
-	require("tau").show()
-end, { nargs = 0, desc = "Open the tau chat" })
+cmd("Tau", function(opts)
+	local args = {}
+	for part in opts.args:gmatch("%S+") do
+		local key, value = part:match("^(%w+)=([^%s]+)$")
+		if key and value then
+			args[key] = value
+		end
+	end
+	require("tau").show(args)
+end, { nargs = "*", desc = "Open the tau chat (e.g. Tau layout=side)" })
 
 cmd("TauToggle", function()
 	require("tau").toggle()
