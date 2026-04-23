@@ -12,6 +12,26 @@ function M.toggle(opts)
   require("tua.ui").toggle(opts)
 end
 
+function M.close()
+  require("tua.ui").close()
+end
+
+function M.focus_history()
+  require("tua.ui").focus_history()
+end
+
+function M.focus_prompt()
+  require("tua.ui").focus_prompt()
+end
+
+function M.scroll_history(direction, lines)
+  require("tua.ui").scroll_history(direction, lines)
+end
+
+function M.scroll_history_to_bottom()
+  require("tua.ui").scroll_history_to_bottom()
+end
+
 function M.stop()
   require("tua.rpc").stop()
 end
@@ -21,7 +41,26 @@ function M.abort()
 end
 
 function M.new_session()
-  require("tua.session").new_session(vim.fn.getcwd())
+  local state = require("tua.state")
+  local agents = require("tua.agents")
+  local config = require("tua.config").get()
+
+  local session = state.create_session({
+    cwd = vim.fn.getcwd(),
+    provider = config.provider.name,
+    model = config.provider.model,
+  })
+
+  local system_prompt = agents.build_system_prompt(session.cwd, session.provider)
+  if system_prompt then
+    table.insert(session.messages, {
+      role = "system",
+      content = system_prompt,
+    })
+  end
+
+  state.set_session(nil, session)
+  vim.notify("New session started", vim.log.levels.INFO)
 end
 
 function M.continue_session()
@@ -33,15 +72,47 @@ function M.resume_session()
 end
 
 function M.compact(instructions)
-  require("tua.rpc").send("compact", { instructions = instructions })
+  local state = require("tua.state")
+  local context = require("tua.context")
+  local session = state.get_session()
+
+  if not session or #session.messages == 0 then
+    vim.notify("No active session to compact", vim.log.levels.WARN)
+    return
+  end
+
+  local provider = session.provider or require("tua.config").get().provider.name
+  local before = context.count_messages_tokens(session.messages)
+
+  vim.notify("Compacting session context...", vim.log.levels.INFO)
+
+  local compacted, saved = context.compact(session.messages, instructions, provider)
+  session.messages = compacted
+  session.compacted_count = (session.compacted_count or 0) + 1
+  state.update_session_tokens()
+
+  local after = context.count_messages_tokens(session.messages)
+  vim.notify(
+    string.format("Compacted: %d → %d tokens (freed %d)", before, after, before - after),
+    vim.log.levels.INFO
+  )
 end
 
 function M.select_model()
   require("tua.models").select()
+  M.sync_session_model()
 end
 
 function M.cycle_model()
   require("tua.models").cycle()
+  M.sync_session_model()
+end
+
+function M.sync_session_model()
+  local session = require("tua.state").get_session()
+  if session then
+    session.model = require("tua.models").get_active()
+  end
 end
 
 function M.focus_history()
@@ -162,6 +233,8 @@ function M.show_agents()
 
   vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
 end
+
+function M.list_logins()
   local auth = require("tua.auth")
   local providers = auth.list_providers()
   if #providers == 0 then
@@ -171,16 +244,41 @@ end
   vim.notify("Stored providers: " .. table.concat(providers, ", "), vim.log.levels.INFO)
 end
 
-function M.send_mention(args, opts)
-  error("not implemented — Phase 5")
+function M.send_mention()
+  local mention = require("tua.ui.complete").send_mention_for_buffer()
+  if mention then
+    local ui = require("tua.ui")
+    if not ui.active then
+      M.show()
+    end
+    ui.focus_prompt()
+    local lines = vim.api.nvim_buf_get_lines(ui.active.prompt_buf, 0, -1, false)
+    if #lines > 0 and lines[#lines] ~= "" then
+      table.insert(lines, mention)
+    else
+      lines[#lines] = mention
+    end
+    vim.api.nvim_buf_set_lines(ui.active.prompt_buf, 0, -1, false, lines)
+  end
 end
 
 function M.attach_image(path)
-  error("not implemented — Phase 4")
+  local att = require("tua.attachments")
+  local result, err = att.attach_file(path)
+  if not result then
+    vim.notify(err, vim.log.levels.ERROR)
+    return nil
+  end
+  return result
 end
 
 function M.paste_image()
-  error("not implemented — Phase 4")
+  error("not implemented — requires img-clip.nvim integration")
+end
+
+function M.build_user_message(text, attachments)
+  local provider = require("tua.config").get().provider.name
+  return require("tua.attachments").build_user_message(text, attachments, provider)
 end
 
 function M.invoke(command)

@@ -272,14 +272,14 @@ function M.build_openai_responses_body(model, messages, opts)
       if msg.tool_calls then
         for _, tc in ipairs(msg.tool_calls) do
           local call_id = tc.id or tc.call_id
-          local args = tc.function.arguments
+          local args = tc["function"].arguments
           if type(args) == "table" then
             args = vim.json.encode(args)
           end
           table.insert(input, {
             type = "function_call",
             call_id = call_id,
-            name = tc.function.name,
+            name = tc["function"].name,
             arguments = args or "{}",
           })
         end
@@ -355,7 +355,7 @@ function M.format_openai_chat_tools(tools)
   for _, tool in ipairs(tools) do
     table.insert(formatted, {
       type = "function",
-      function = {
+      ["function"] = {
         name = tool.name,
         description = tool.description,
         parameters = tool.parameters,
@@ -471,8 +471,8 @@ function M.handle_openai_chat_event(data, on_chunk, on_tool_use, on_thinking)
 
   if delta.tool_calls and #delta.tool_calls > 0 then
     local tc = delta.tool_calls[1]
-    if tc.function then
-      on_tool_use(tc.function.name, tc.function.arguments, tc.id)
+    if tc["function"] then
+      on_tool_use(tc["function"].name, tc["function"].arguments, tc.id)
     end
   end
 end
@@ -578,7 +578,7 @@ function M.parse_openai_chat_response(response)
 
   if message.tool_calls then
     for _, tc in ipairs(message.tool_calls) do
-      local args = tc.function.arguments
+      local args = tc["function"].arguments
       local input = {}
       if args and args ~= "" then
         local success, parsed = pcall(vim.json.decode, args)
@@ -588,7 +588,7 @@ function M.parse_openai_chat_response(response)
       end
       table.insert(tool_uses, {
         id = tc.id,
-        name = tc.function.name,
+        name = tc["function"].name,
         input = input,
       })
     end

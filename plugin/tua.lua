@@ -57,6 +57,18 @@ cmd("TauSelectThinking", function()
 	require("tua").select_thinking_level()
 end, { nargs = 0, desc = "Select thinking level" })
 
+cmd("TauLayout", function(opts)
+	require("tua.ui").toggle({ layout = opts.args ~= "" and opts.args or nil })
+end, { nargs = "?", desc = "Toggle chat layout (side/float)" })
+
+cmd("TauToggleLayout", function()
+	require("tua").toggle()
+end, { nargs = 0, desc = "Toggle chat layout without losing state" })
+
+cmd("TauToggleChat", function()
+	require("tua").toggle()
+end, { nargs = 0, desc = "Toggle chat visibility" })
+
 cmd("TauToggleThinking", function()
 	require("tua").toggle_thinking()
 end, { nargs = 0, desc = "Toggle thinking visibility" })
@@ -76,6 +88,14 @@ end, { nargs = "?", desc = "Remove stored credentials" })
 cmd("TauListLogins", function()
 	require("tua").list_logins()
 end, { nargs = 0, desc = "List stored provider logins" })
+
+cmd("TauZen", function()
+	require("tua.ui.zen").toggle()
+end, { nargs = 0, desc = "Toggle zen mode" })
+
+cmd("TauSendMention", function()
+	require("tua").send_mention()
+end, { nargs = 0, desc = "Insert @mention for current buffer/selection" })
 
 cmd("TauAgents", function()
 	require("tua").show_agents()

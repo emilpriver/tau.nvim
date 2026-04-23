@@ -5,12 +5,28 @@ local current_thinking_level = "off"
 local current_model = nil
 local available_models = {}
 
+local FALLBACK_MODELS = {
+  cursor = {
+    "claude-3.5-sonnet",
+    "claude-3-opus",
+    "claude-3.5-haiku",
+    "gpt-4o",
+    "gpt-4o-mini",
+    "cursor-fast",
+    "cursor-small",
+  },
+}
+
 local function get_provider()
   return require("tua.config").get().provider.name
 end
 
 local function get_config()
   return require("tua.config").get()
+end
+
+local function get_fallback_models()
+  return FALLBACK_MODELS.cursor or {}
 end
 
 local function resolve_model_list()
@@ -65,18 +81,31 @@ end
 
 function M.refresh()
   local provider = get_provider()
-  local success, models = pcall(require("tua.api").list_models, provider)
-  if success and models then
+  local ok, models = pcall(require("tua.api").list_models, provider)
+  if ok and models and #models > 0 then
     available_models = models
-    if not current_model and #models > 0 then
-      current_model = models[1]
+    vim.notify("Loaded " .. #models .. " models from " .. provider, vim.log.levels.INFO)
+  else
+    local fallback = get_fallback_models()
+    available_models = fallback
+    if not ok then
+      vim.notify("API error fetching models: " .. tostring(models), vim.log.levels.WARN)
     end
+    vim.notify("Using " .. #fallback .. " fallback models for " .. provider, vim.log.levels.INFO)
+  end
+
+  if not current_model or #available_models == 0 then
+    current_model = available_models[1]
   end
 end
 
 function M.cycle()
   local list = resolve_model_list()
   if #list == 0 then
+    list = available_models
+  end
+  if #list == 0 then
+    M.refresh()
     list = available_models
   end
   if #list == 0 then
@@ -99,6 +128,10 @@ function M.cycle()
 end
 
 function M.select()
+  if #available_models == 0 then
+    M.refresh()
+  end
+
   local list = resolve_model_list()
   if #list == 0 then
     list = available_models
@@ -110,7 +143,7 @@ function M.select()
 
   local items = {}
   for i, model_id in ipairs(list) do
-    local marker = model_id == current_model and "✓ " or "  "
+    local marker = model_id == current_model and "> " or "  "
     table.insert(items, marker .. model_id)
   end
 
@@ -135,7 +168,7 @@ function M.select_all()
 
   local items = {}
   for _, model_id in ipairs(available_models) do
-    local marker = model_id == current_model and "✓ " or "  "
+    local marker = model_id == current_model and "> " or "  "
     table.insert(items, marker .. model_id)
   end
 
