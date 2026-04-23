@@ -181,8 +181,15 @@ function M.render_message(msg, config)
 
   elseif msg.role == "system" then
     local label = config.labels.system_error
-    table.insert(lines, label .. " " .. tostring(msg.content))
+    table.insert(lines, label)
     table.insert(extmarks, { line = #lines - 1, hl = HL.system })
+
+    local content = msg.content
+    if type(content) == "string" then
+      for _, line in ipairs(vim.split(content, "\n")) do
+        table.insert(lines, "  " .. line)
+      end
+    end
   end
 
   table.insert(lines, "")

@@ -52,9 +52,9 @@ function M.run_turn(provider_name, messages, opts)
 		})
 
 		if not ok then
-			vim.notify("API error: " .. tostring(result), vim.log.levels.ERROR)
+			vim.notify(tostring(result), vim.log.levels.ERROR)
 			return {
-				text = "Error: " .. tostring(result),
+				text = tostring(result),
 				tool_iterations = iteration - 1,
 				messages = current_messages,
 			}
@@ -71,10 +71,14 @@ function M.run_turn(provider_name, messages, opts)
 		end
 
 		if not has_tool_calls then
-			table.insert(current_messages, {
+			local msg = {
 				role = "assistant",
-				content = result.text,
-			})
+				content = result.text or "",
+			}
+			if result.thinking and result.thinking ~= "" then
+				msg.reasoning_content = result.thinking
+			end
+			table.insert(current_messages, msg)
 			return {
 				text = result.text,
 				thinking = result.thinking,
@@ -86,9 +90,12 @@ function M.run_turn(provider_name, messages, opts)
 
 		local assistant_msg = {
 			role = "assistant",
-			content = result.text ~= "" and result.text or nil,
+			content = result.text ~= "" and result.text or "",
 			tool_calls = {},
 		}
+		if result.thinking and result.thinking ~= "" then
+			assistant_msg.reasoning_content = result.thinking
+		end
 		for _, tool_use in ipairs(result.tool_uses) do
 			table.insert(assistant_msg.tool_calls, {
 				id = tool_use.id,
@@ -134,6 +141,9 @@ function M.run_turn_streaming(provider_name, messages, opts)
 	local on_text = opts.on_text or function() end
 	local on_thinking = opts.on_thinking or function() end
 	local on_done = opts.on_done or function() end
+	local on_error = opts.on_error or function(err)
+		vim.notify(err, vim.log.levels.ERROR)
+	end
 
 	local iteration = 0
 
@@ -203,10 +213,10 @@ function M.run_turn_streaming(provider_name, messages, opts)
 			if text_response ~= "" or thinking_response ~= "" or count_tool_calls(tool_calls) > 0 then
 				local assistant_msg = {
 					role = "assistant",
-					content = text_response ~= "" and text_response or nil,
+					content = text_response ~= "" and text_response or "",
 				}
 				if thinking_response ~= "" then
-					assistant_msg.thinking = thinking_response
+					assistant_msg.reasoning_content = thinking_response
 				end
 				if count_tool_calls(tool_calls) > 0 then
 					assistant_msg.tool_calls = {}
@@ -262,13 +272,16 @@ function M.run_turn_streaming(provider_name, messages, opts)
 			on_tool_use = on_tool,
 			on_done = on_stream_done,
 			on_error = function(err)
-				vim.notify("Stream error: " .. err, vim.log.levels.ERROR)
-				on_done()
+				vim.schedule(function()
+					on_error(err)
+				end)
 			end,
 		})
 
 		if not stream_ok then
-			vim.notify("Failed to start stream: " .. tostring(stream_err), vim.log.levels.ERROR)
+			vim.schedule(function()
+				on_error(tostring(stream_err))
+			end)
 			on_done()
 		end
 	end

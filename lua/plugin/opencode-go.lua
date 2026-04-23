@@ -55,7 +55,25 @@ local function get_string(val)
 	return nil
 end
 
-local function handle_stream_event(data, callbacks)
+local function extract_error(parsed)
+	if not parsed or not parsed.error then
+		return nil
+	end
+	local err = parsed.error
+	if type(err) ~= "table" then
+		return tostring(err)
+	end
+	if err.metadata and err.metadata.raw then
+		local ok, raw = pcall(vim.json.decode, err.metadata.raw)
+		if ok and raw and raw.error then
+			return raw.error.message or vim.json.encode(raw.error)
+		end
+		return err.metadata.raw
+	end
+	return err.message or err.code or vim.json.encode(err)
+end
+
+local function handle_stream_event(data, callbacks, tool_calls_acc)
 	local choices = data.choices
 	if not choices or #choices == 0 then
 		return
@@ -72,14 +90,32 @@ local function handle_stream_event(data, callbacks)
 	if reasoning then
 		callbacks.on_thinking(reasoning)
 	end
-	if delta.tool_calls and #delta.tool_calls > 0 then
-		local tc = delta.tool_calls[1]
-		if tc and tc["function"] then
-			local name = get_string(tc["function"].name)
-			local args = get_string(tc["function"].arguments)
-			local id = get_string(tc.id)
-			if name then
-				callbacks.on_tool_use(name, args or "", id)
+	if type(delta.tool_calls) == "table" and #delta.tool_calls > 0 then
+		for _, tc in ipairs(delta.tool_calls) do
+			if tc and type(tc) == "table" and tc["function"] and type(tc["function"]) == "table" then
+				local idx = tc.index or 1
+				if not tool_calls_acc[idx] then
+					tool_calls_acc[idx] = { name = nil, args = "", id = nil }
+				end
+				local entry = tool_calls_acc[idx]
+				local name = get_string(tc["function"].name)
+				local args = get_string(tc["function"].arguments)
+				local id = get_string(tc.id)
+				if name then
+					entry.name = name
+				end
+				if id then
+					entry.id = id
+				elseif not entry.id then
+					entry.id = "tc_" .. idx
+				end
+				local args_delta = args or ""
+				if args then
+					entry.args = entry.args .. args
+				end
+				if entry.name and entry.id then
+					callbacks.on_tool_use(entry.name, args_delta, entry.id)
+				end
 			end
 		end
 	end
@@ -141,6 +177,7 @@ function M.stream(api_key, base_url, model, messages, opts)
 	local buffer = ""
 	local event_count = 0
 	local stderr_lines = {}
+	local tool_calls_acc = {}
 
 	local done_called = false
 
@@ -183,7 +220,7 @@ function M.stream(api_key, base_url, model, messages, opts)
 								on_tool_use(name, args, id)
 							end)
 						end,
-					})
+					}, tool_calls_acc)
 				end
 			end
 		end
@@ -205,6 +242,9 @@ function M.stream(api_key, base_url, model, messages, opts)
 	local handle = vim.system(curl_cmd, { text = true, stdout = process_chunk, stderr = stderr_handler }, function(result)
 		if result.code ~= 0 then
 			local err_msg = table.concat(stderr_lines, "\n")
+			if result.stdout and result.stdout ~= "" then
+				err_msg = err_msg .. "\n" .. result.stdout
+			end
 			if err_msg == "" then
 				err_msg = "HTTP request failed (code " .. result.code .. ")"
 			end
@@ -223,12 +263,7 @@ function M.stream(api_key, base_url, model, messages, opts)
 			local ok, parsed = pcall(vim.json.decode, buffer)
 			if ok and parsed then
 				if parsed.error then
-					local err_msg = "API error"
-					if type(parsed.error) == "table" then
-						err_msg = parsed.error.message or parsed.error.code or vim.json.encode(parsed.error)
-					else
-						err_msg = tostring(parsed.error)
-					end
+					local err_msg = extract_error(parsed) or buffer
 					vim.schedule(function()
 						on_error(err_msg)
 					end)
@@ -280,28 +315,18 @@ function M.call(api_key, base_url, model, messages, opts)
 	if result.code ~= 0 then
 		local err = result.stderr or "unknown"
 		if result.stdout and result.stdout ~= "" then
-			local ok, parsed = pcall(vim.json.decode, result.stdout)
-			if ok and parsed and parsed.error then
-				err = err .. "\n" .. vim.json.encode(parsed.error)
-			else
-				err = err .. "\n" .. result.stdout:sub(1, 500)
-			end
+			err = err .. "\n" .. result.stdout
 		end
-		error("API error: " .. err)
+		error(err)
 	end
 
 	local success, response = pcall(vim.json.decode, result.stdout)
 	if not success then
-		error("Failed to parse API response: " .. result.stdout)
+		error(result.stdout)
 	end
 
 	if response.error then
-		local err = "API error"
-		if type(response.error) == "table" then
-			err = response.error.message or response.error.code or vim.json.encode(response.error)
-		else
-			err = tostring(response.error)
-		end
+		local err = extract_error(response) or result.stdout
 		error(err)
 	end
 

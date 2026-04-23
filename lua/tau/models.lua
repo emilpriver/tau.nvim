@@ -77,7 +77,7 @@ function M.refresh()
     local fallback = get_fallback_models()
     available_models = fallback
     if not ok then
-      vim.notify("API error fetching models: " .. tostring(models), vim.log.levels.WARN)
+      vim.notify(tostring(models), vim.log.levels.WARN)
     end
     vim.notify("Using " .. #fallback .. " fallback models for " .. provider, vim.log.levels.INFO)
   end

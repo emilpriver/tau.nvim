@@ -270,15 +270,10 @@ function M.start_turn()
 			if not M.active then
 				return
 			end
-			local buf = M.active.hist_buf
-			vim.bo[buf].modifiable = true
-			local count = vim.api.nvim_buf_line_count(buf)
-			vim.api.nvim_buf_set_lines(buf, count, count, false, {
-				"",
-				"  Error: " .. err:gsub("\n", " "):sub(1, 200),
-				"",
+			table.insert(session.messages, {
+				role = "system",
+				content = err,
 			})
-			vim.bo[buf].modifiable = false
 			M.finish_turn()
 		end,
 		on_done = function()

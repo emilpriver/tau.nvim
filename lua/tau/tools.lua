@@ -68,6 +68,72 @@ M.tools = {
       required = { "command" },
     },
   },
+  open_buffers = {
+    name = "open_buffers",
+    description = "List all open buffers in Neovim. Returns buffer numbers, file names, modified status, line counts, and file types. Use this to discover which files the user is currently editing.",
+    parameters = {
+      type = "object",
+    },
+  },
+  read_buffer = {
+    name = "read_buffer",
+    description = "Read the contents of an open Neovim buffer by buffer number. Returns buffer content as text. Supports offset/limit for large buffers. Works even for unsaved buffers ([No Name]).",
+    parameters = {
+      type = "object",
+      properties = {
+        bufnr = { type = "number", description = "Buffer number (from open_buffers)" },
+        offset = { type = "number", description = "Line number to start reading from (1-indexed)" },
+        limit = { type = "number", description = "Maximum number of lines to read" },
+      },
+      required = { "bufnr" },
+    },
+  },
+  edit_buffer = {
+    name = "edit_buffer",
+    description = "Edit an open Neovim buffer using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the buffer. Changes are applied via Neovim's buffer API (not file on disk), so unsaved buffers can be edited too. The buffer is marked as modified after editing.",
+    parameters = {
+      type = "object",
+      properties = {
+        bufnr = { type = "number", description = "Buffer number (from open_buffers)" },
+        edits = {
+          type = "array",
+          description = "One or more targeted replacements. Each edit is matched against the original buffer, not incrementally. Do not include overlapping or nested edits.",
+          items = {
+            type = "object",
+            properties = {
+              oldText = { type = "string", description = "Exact text for one targeted replacement. Must be unique in the buffer." },
+              newText = { type = "string", description = "Replacement text for this targeted edit." },
+            },
+            required = { "oldText", "newText" },
+          },
+        },
+      },
+      required = { "bufnr", "edits" },
+    },
+  },
+  goto_buffer = {
+    name = "goto_buffer",
+    description = "Switch the user's view to a specific buffer. Opens the buffer in the current window. Optionally opens in a vertical or horizontal split.",
+    parameters = {
+      type = "object",
+      properties = {
+        bufnr = { type = "number", description = "Buffer number to switch to" },
+        split = { type = "string", description = "Optional: 'vertical' or 'horizontal' to open in a split" },
+      },
+      required = { "bufnr" },
+    },
+  },
+  tree = {
+    name = "tree",
+    description = "List all files and folders in a directory recursively. Returns a tree-like listing. Defaults to the current working directory. Use this to explore the project structure.",
+    parameters = {
+      type = "object",
+      properties = {
+        path = { type = "string", description = "Directory path to list (relative or absolute). Defaults to current working directory." },
+        depth = { type = "number", description = "Maximum recursion depth. Defaults to 3." },
+      },
+    },
+  },
 }
 
 local function resolve_path(path)
@@ -273,6 +339,10 @@ function M.bash_tool(input)
     return { error = "Command execution failed: " .. result }
   end
 
+  if not result then
+    return { error = "Command timed out or failed to execute (no result returned)" }
+  end
+
   local output = ""
   if result.stdout and result.stdout ~= "" then
     output = output .. result.stdout
@@ -293,17 +363,85 @@ function M.bash_tool(input)
   }
 end
 
+function M.tree_tool(input)
+  local path = input.path and resolve_path(input.path) or vim.fn.getcwd()
+  local max_depth = input.depth or 3
+
+  if vim.fn.isdirectory(path) == 0 then
+    return { error = "Not a directory: " .. path }
+  end
+
+  local uv = vim.uv or vim.loop
+  local result = { path .. "/" }
+
+  local function scandir(dir, depth, prefix)
+    if depth > max_depth then
+      return
+    end
+    local handle = uv.fs_scandir(dir)
+    if not handle then
+      return
+    end
+    local entries = {}
+    while true do
+      local name, typ = uv.fs_scandir_next(handle)
+      if not name then
+        break
+      end
+      if name ~= "." and name ~= ".." then
+        table.insert(entries, { name = name, type = typ })
+      end
+    end
+    table.sort(entries, function(a, b)
+      if a.type == b.type then
+        return a.name < b.name
+      end
+      return a.type == "directory"
+    end)
+    for i, entry in ipairs(entries) do
+      local is_last = i == #entries
+      local connector = is_last and "└── " or "├── "
+      local child_prefix = is_last and "    " or "│   "
+      table.insert(result, prefix .. connector .. entry.name)
+      if entry.type == "directory" then
+        scandir(dir .. "/" .. entry.name, depth + 1, prefix .. child_prefix)
+      end
+    end
+  end
+
+  scandir(path, 1, "")
+
+  local text = table.concat(result, "\n")
+  return {
+    text = text,
+    path = path,
+    depth = max_depth,
+  }
+end
+
+local buffer_tools = require("tau.tools.buffers")
+
 local TOOL_MAP = {
   read = M.read_tool,
   write = M.write_tool,
   edit = M.edit_tool,
   bash = M.bash_tool,
+  tree = M.tree_tool,
+  open_buffers = buffer_tools.open_buffers_tool,
+  read_buffer = buffer_tools.read_buffer_tool,
+  edit_buffer = buffer_tools.edit_buffer_tool,
+  goto_buffer = buffer_tools.goto_buffer_tool,
 }
 
 function M.execute(tool_name, input)
   local fn = TOOL_MAP[tool_name]
   if not fn then
-    return { error = "Unknown tool: " .. tool_name .. ". Available tools: read, write, edit, bash" }
+    local names = {}
+    for name in pairs(TOOL_MAP) do
+      table.insert(names, name)
+    end
+    table.sort(names)
+    return { error = "Unknown tool: " .. tool_name .. ". Available tools: " .. table.concat(names, ", ") }
   end
 
   local ok, result = pcall(fn, input or {})
