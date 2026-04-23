@@ -1,1 +1,1 @@
-# tua.nvim
+# tau.nvim
