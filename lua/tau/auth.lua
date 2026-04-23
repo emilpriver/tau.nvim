@@ -1,6 +1,6 @@
 local M = {}
 
-local auth_path = vim.fn.stdpath("data") .. "/tua/auth.json"
+local auth_path = vim.fn.stdpath("data") .. "/tau/auth.json"
 
 local function ensure_dir()
   local dir = vim.fn.fnamemodify(auth_path, ":h")
@@ -118,23 +118,5 @@ end
 function M.get_auth_path()
   return auth_path
 end
-
-M.PROVIDER_HELP = {
-  anthropic = {
-    name = "Anthropic",
-    key_url = "https://console.anthropic.com/settings/keys",
-    prompt = "Enter your Anthropic API key (sk-ant-...)",
-  },
-  openai = {
-    name = "OpenAI",
-    key_url = "https://platform.openai.com/api-keys",
-    prompt = "Enter your OpenAI API key (sk-...)",
-  },
-  cursor = {
-    name = "Cursor",
-    key_url = "https://www.cursor.com/settings",
-    prompt = "Enter your Cursor API key",
-  },
-}
 
 return M

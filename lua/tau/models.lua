@@ -5,28 +5,16 @@ local current_thinking_level = "off"
 local current_model = nil
 local available_models = {}
 
-local FALLBACK_MODELS = {
-  cursor = {
-    "claude-3.5-sonnet",
-    "claude-3-opus",
-    "claude-3.5-haiku",
-    "gpt-4o",
-    "gpt-4o-mini",
-    "cursor-fast",
-    "cursor-small",
-  },
-}
-
 local function get_provider()
-  return require("tua.config").get().provider.name
+  return require("tau.config").get().provider.name
 end
 
 local function get_config()
-  return require("tua.config").get()
+  return require("tau.config").get()
 end
 
 local function get_fallback_models()
-  return FALLBACK_MODELS.cursor or {}
+  return require("tau.plugin").get_fallback_models(get_provider())
 end
 
 local function resolve_model_list()
@@ -81,7 +69,7 @@ end
 
 function M.refresh()
   local provider = get_provider()
-  local ok, models = pcall(require("tua.api").list_models, provider)
+  local ok, models = pcall(require("tau.api").list_models, provider)
   if ok and models and #models > 0 then
     available_models = models
     vim.notify("Loaded " .. #models .. " models from " .. provider, vim.log.levels.INFO)
@@ -187,7 +175,7 @@ end
 
 function M.set(model_id)
   local provider = get_provider()
-  require("tua.config").get().provider.model = model_id
+  require("tau.config").get().provider.model = model_id
   current_model = model_id
   vim.notify("Model: " .. model_id, vim.log.levels.INFO)
 end

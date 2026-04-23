@@ -6,7 +6,7 @@
 4. **Token counting**: Approximate (chars / 4) vs. provider-specific tiktoken vs. API-returned usage
 5. **Session format**: JSONL (line-delimited JSON) for streaming compatibility vs. single JSON file
 6. **Diff engine**: Use `vim.diff()` (built-in xdiff) or shell `diff`/`git diff`
-7. **Streaming**: SSE parser for Anthropic/OpenAI streaming responses
+7. **Streaming**: SSE parser for OpenAI-compatible streaming responses
 8. **Permission system**: Build-in vs. extension-only (pi.nvim chose extension-only, but a native plugin could ship defaults)
 9. **Compaction**: Call the LLM itself to summarize, or use a separate summarization model
 10. **Extension system**: Lua modules loaded from config dir vs. external plugin dependencies

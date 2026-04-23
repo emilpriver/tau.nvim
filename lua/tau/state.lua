@@ -31,8 +31,8 @@ function M.create_session(opts)
     cwd = opts.cwd or vim.fn.getcwd(),
     name = opts.name or nil,
     messages = opts.messages or {},
-    model = opts.model or require("tua.config").get().provider.model,
-    provider = opts.provider or require("tua.config").get().provider.name,
+    model = opts.model or require("tau.config").get().provider.model,
+    provider = opts.provider or require("tau.config").get().provider.name,
     tokens_used = 0,
     context_limit = 0,
     compacted_count = 0,
@@ -47,8 +47,8 @@ function M.update_session_tokens(tab_id)
     return
   end
 
-  local context = require("tua.context")
-  local model = session.model or require("tua.config").get().provider.model
+  local context = require("tau.context")
+  local model = session.model or require("tau.config").get().provider.model
   session.tokens_used = context.count_messages_tokens(session.messages)
   session.context_limit = context.get_context_limit(model)
   session.updated_at = vim.fn.localtime()

@@ -28,16 +28,16 @@ local function check_curl()
 end
 
 local function check_provider_config()
-  local config = require("tua.config").get()
+  local config = require("tau.config").get()
   local provider = config.provider.name
+  local plugin = require("tau.plugin").get_provider(provider)
 
-  local env_vars = {
-    anthropic = "ANTHROPIC_API_KEY",
-    openai = "OPENAI_API_KEY",
-    cursor = "CURSOR_API_KEY",
-  }
+  if not plugin then
+    vim.health.warn(string.format("Unknown provider: %s", provider))
+    return
+  end
 
-  local auth = require("tua.auth")
+  local auth = require("tau.auth")
   local has_auth_key = auth.has_key(provider)
 
   if has_auth_key then
@@ -45,7 +45,7 @@ local function check_provider_config()
     return true
   end
 
-  local env_var = env_vars[provider]
+  local env_var = plugin.api_key_env
   if env_var then
     local has_env_key = vim.env[env_var] ~= nil
     if has_env_key then
@@ -55,8 +55,6 @@ local function check_provider_config()
         string.format("%s is not set and no auth file entry — run :TauLogin %s", env_var, provider)
       )
     end
-  else
-    vim.health.warn(string.format("Unknown provider: %s", provider))
   end
 end
 

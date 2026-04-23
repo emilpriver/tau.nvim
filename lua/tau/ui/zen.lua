@@ -1,6 +1,6 @@
 local M = {}
 
-local ZEN_NS = vim.api.nvim_create_namespace("tua_zen")
+local ZEN_NS = vim.api.nvim_create_namespace("tau_zen")
 
 M.active = false
 M.original_wins = {}
@@ -18,7 +18,7 @@ function M.enter()
     return
   end
 
-  local ui = require("tua.ui")
+  local ui = require("tau.ui")
   if not ui.active then
     vim.notify("Open chat first with :Tau", vim.log.levels.WARN)
     return
@@ -40,7 +40,7 @@ function M.enter()
     vim.cmd("resize 20")
   end
 
-  vim.cmd("highlight TuaZenBackdrop guibg=#1a1a1a ctermbg=234")
+  vim.cmd("highlight TauZenBackdrop guibg=#1a1a1a ctermbg=234")
   local backdrop = vim.api.nvim_create_buf(false, true)
   local backdrop_win = vim.api.nvim_open_win(backdrop, false, {
     relative = "editor",
@@ -52,7 +52,7 @@ function M.enter()
     focusable = false,
     zindex = 1,
   })
-  vim.wo[backdrop_win].winhighlight = "Normal:TuaZenBackdrop"
+  vim.wo[backdrop_win].winhighlight = "Normal:TauZenBackdrop"
   vim.wo[backdrop_win].winblend = 30
 
   M.backdrop_win = backdrop_win

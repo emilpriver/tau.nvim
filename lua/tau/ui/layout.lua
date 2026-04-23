@@ -1,6 +1,6 @@
 local M = {}
 
-local LAYOUT_NS = vim.api.nvim_create_namespace("tua_layout")
+local LAYOUT_NS = vim.api.nvim_create_namespace("tau_layout")
 
 function M.create_side(config)
   local position = config.layout.side.position
@@ -45,7 +45,7 @@ function M.create_float(config)
     row = row,
     border = float_cfg.border,
     style = "minimal",
-    title = " tua ",
+    title = " tau ",
     title_pos = "center",
   })
 

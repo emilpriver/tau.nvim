@@ -1,7 +1,7 @@
 local M = {}
 
-local tools = require("tua.tools")
-local api = require("tua.api")
+local tools = require("tau.tools")
+local api = require("tau.api")
 
 local MAX_TOOL_ITERATIONS = 20
 
@@ -18,8 +18,8 @@ function M.run_turn(provider_name, messages, opts)
 	while iteration < MAX_TOOL_ITERATIONS do
 		iteration = iteration + 1
 
-		local context = require("tua.context")
-		local model = opts.model or require("tua.config").get().provider.model
+		local context = require("tau.context")
+		local model = opts.model or require("tau.config").get().provider.model
 
 		local should_warn, tokens, limit, ratio = context.should_warn(current_messages, model)
 		if should_warn then
@@ -93,27 +93,11 @@ function M.run_turn(provider_name, messages, opts)
 
 			on_tool_result(tool_use.id, tool_use.name, tool_result, is_error)
 
-			local result_msg = {
+			table.insert(current_messages, {
 				role = "tool",
 				tool_call_id = tool_use.id,
 				content = content,
-			}
-
-			if provider_name == "anthropic" then
-				result_msg = {
-					role = "user",
-					content = {
-						{
-							type = "tool_result",
-							tool_use_id = tool_use.id,
-							content = content,
-							is_error = is_error,
-						},
-					},
-				}
-			end
-
-			table.insert(current_messages, result_msg)
+			})
 		end
 	end
 
@@ -140,8 +124,8 @@ function M.run_turn_streaming(provider_name, messages, opts)
 	local function do_turn()
 		iteration = iteration + 1
 
-		local context = require("tua.context")
-		local model = opts.model or require("tua.config").get().provider.model
+		local context = require("tau.context")
+		local model = opts.model or require("tau.config").get().provider.model
 
 		local should_warn, tokens, limit, ratio = context.should_warn(current_messages, model)
 		if should_warn then
@@ -214,34 +198,11 @@ function M.run_turn_streaming(provider_name, messages, opts)
 
 					on_tool_result(id, tc.name, result, is_error)
 
-					local result_msg
-					if provider_name == "anthropic" then
-						result_msg = {
-							role = "user",
-							content = {
-								{
-									type = "tool_result",
-									tool_use_id = id,
-									content = content,
-									is_error = is_error,
-								},
-							},
-						}
-					else
-						result_msg = {
-							role = "tool",
-							tool_call_id = id,
-							content = content,
-						}
-					end
-
-					local tc = tool_calls[id]
 					local assistant_msg = {
 						role = "assistant",
 						tool_calls = {
 							{
 								id = id,
-								call_id = id,
 								["function"] = {
 									name = tc.name,
 									arguments = tc.input_str,
@@ -256,7 +217,12 @@ function M.run_turn_streaming(provider_name, messages, opts)
 						assistant_msg.reasoning = thinking_response
 					end
 					table.insert(current_messages, assistant_msg)
-					table.insert(current_messages, result_msg)
+
+					table.insert(current_messages, {
+						role = "tool",
+						tool_call_id = id,
+						content = content,
+					})
 				end
 
 				if #tool_calls > 0 then

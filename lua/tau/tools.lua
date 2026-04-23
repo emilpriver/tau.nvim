@@ -5,6 +5,8 @@ local MAX_OUTPUT_BYTES = 50 * 1024
 
 M.changed_files = {}
 
+
+-- TODO: I want to be able to edit buffers in neovim
 M.tools = {
   read = {
     name = "read",

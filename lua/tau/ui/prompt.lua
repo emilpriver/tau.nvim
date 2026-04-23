@@ -1,13 +1,13 @@
 local M = {}
 
-local PROMPT_NS = vim.api.nvim_create_namespace("tua_prompt")
+local PROMPT_NS = vim.api.nvim_create_namespace("tau_prompt")
 
 function M.create_buffer()
   local buf = vim.api.nvim_create_buf(false, true)
   vim.bo[buf].buftype = "nofile"
   vim.bo[buf].bufhidden = "hide"
   vim.bo[buf].swapfile = false
-  vim.bo[buf].filetype = "tua-prompt"
+  vim.bo[buf].filetype = "tau-prompt"
   return buf
 end
 
@@ -73,7 +73,7 @@ function M.set_keymaps(buf, callbacks)
 end
 
 function M.set_completefunc(buf)
-  vim.bo[buf].completefunc = "v:lua.require'tua.ui.complete'.completefunc"
+  vim.bo[buf].completefunc = "v:lua.require'tau.ui.complete'.completefunc"
 end
 
 function M.set_statusline(win, text)
@@ -90,19 +90,19 @@ end
 
 function M.build_statusline(session, config)
   if not session then
-    return " tua "
+    return " tau "
   end
 
   local parts = {}
   local model = session.model or "default"
   table.insert(parts, " " .. model .. " ")
 
-  local thinking = require("tua.models").get_thinking_level()
+  local thinking = require("tau.models").get_thinking_level()
   if thinking and thinking ~= "off" then
     table.insert(parts, "[think:" .. thinking .. "]")
   end
 
-  local ctx = require("tua.state").get_token_info()
+  local ctx = require("tau.state").get_token_info()
   if ctx then
     local pct = math.floor(ctx.ratio * 100)
     table.insert(parts, string.format(" %d%% (%d/%d)", pct, ctx.used, ctx.limit))

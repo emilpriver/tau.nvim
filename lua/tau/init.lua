@@ -1,49 +1,53 @@
 local M = {}
 
-local config = require("tua.config")
+local config = require("tau.config")
 
-M.setup = config.setup
+function M.setup(opts)
+  opts = opts or {}
+  config.setup(opts)
+  require("tau.plugin").init({ plugins = opts.plugins })
+end
 
 function M.show(opts)
-  require("tua.ui").open(opts)
+  require("tau.ui").open(opts)
 end
 
 function M.toggle(opts)
-  require("tua.ui").toggle(opts)
+  require("tau.ui").toggle(opts)
 end
 
 function M.close()
-  require("tua.ui").close()
+  require("tau.ui").close()
 end
 
 function M.focus_history()
-  require("tua.ui").focus_history()
+  require("tau.ui").focus_history()
 end
 
 function M.focus_prompt()
-  require("tua.ui").focus_prompt()
+  require("tau.ui").focus_prompt()
 end
 
 function M.scroll_history(direction, lines)
-  require("tua.ui").scroll_history(direction, lines)
+  require("tau.ui").scroll_history(direction, lines)
 end
 
 function M.scroll_history_to_bottom()
-  require("tua.ui").scroll_history_to_bottom()
+  require("tau.ui").scroll_history_to_bottom()
 end
 
 function M.stop()
-  require("tua.rpc").stop()
+  require("tau.rpc").stop()
 end
 
 function M.abort()
-  require("tua.rpc").abort()
+  require("tau.rpc").abort()
 end
 
 function M.new_session()
-  local state = require("tua.state")
-  local agents = require("tua.agents")
-  local config = require("tua.config").get()
+  local state = require("tau.state")
+  local agents = require("tau.agents")
+  local config = require("tau.config").get()
 
   local session = state.create_session({
     cwd = vim.fn.getcwd(),
@@ -64,16 +68,16 @@ function M.new_session()
 end
 
 function M.continue_session()
-  require("tua.session").load_most_recent(vim.fn.getcwd())
+  require("tau.session").load_most_recent(vim.fn.getcwd())
 end
 
 function M.resume_session()
-  require("tua.session").list_sessions(vim.fn.getcwd())
+  require("tau.session").list_sessions(vim.fn.getcwd())
 end
 
 function M.compact(instructions)
-  local state = require("tua.state")
-  local context = require("tua.context")
+  local state = require("tau.state")
+  local context = require("tau.context")
   local session = state.get_session()
 
   if not session or #session.messages == 0 then
@@ -81,7 +85,7 @@ function M.compact(instructions)
     return
   end
 
-  local provider = session.provider or require("tua.config").get().provider.name
+  local provider = session.provider or require("tau.config").get().provider.name
   local before = context.count_messages_tokens(session.messages)
 
   vim.notify("Compacting session context...", vim.log.levels.INFO)
@@ -99,19 +103,19 @@ function M.compact(instructions)
 end
 
 function M.select_model()
-  require("tua.models").select()
+  require("tau.models").select()
   M.sync_session_model()
 end
 
 function M.cycle_model()
-  require("tua.models").cycle()
+  require("tau.models").cycle()
   M.sync_session_model()
 end
 
 function M.sync_session_model()
-  local session = require("tua.state").get_session()
+  local session = require("tau.state").get_session()
   if session then
-    session.model = require("tua.models").get_active()
+    session.model = require("tau.models").get_active()
   end
 end
 
@@ -136,37 +140,37 @@ function M.toggle_thinking()
 end
 
 function M.cycle_thinking_level()
-  require("tua.models").cycle_thinking_level()
+  require("tau.models").cycle_thinking_level()
 end
 
 function M.select_thinking_level()
-  require("tua.models").select_thinking_level()
+  require("tau.models").select_thinking_level()
 end
 
 function M.get_thinking_level()
-  return require("tua.models").get_thinking_level()
+  return require("tau.models").get_thinking_level()
 end
 
 function M.get_provider()
-  return require("tua.api").get_provider_info()
+  return require("tau.api").get_provider_info()
 end
 
 function M.stream(messages, opts)
-  local provider = require("tua.config").get().provider.name
-  return require("tua.api").stream(provider, messages, opts)
+  local provider = require("tau.config").get().provider.name
+  return require("tau.api").stream(provider, messages, opts)
 end
 
 function M.call(messages, opts)
-  local provider = require("tua.config").get().provider.name
-  return require("tua.api").call(provider, messages, opts)
+  local provider = require("tau.config").get().provider.name
+  return require("tau.api").call(provider, messages, opts)
 end
 
 function M.refresh_models()
-  require("tua.models").refresh()
+  require("tau.models").refresh()
 end
 
 function M.login(provider_name)
-  local auth = require("tua.auth")
+  local auth = require("tau.auth")
   local info = auth.PROVIDER_HELP[provider_name]
 
   if not info then
@@ -189,7 +193,7 @@ function M.login(provider_name)
 end
 
 function M.logout(provider_name)
-  local auth = require("tua.auth")
+  local auth = require("tau.auth")
 
   if provider_name then
     if auth.remove_key(provider_name) then
@@ -217,7 +221,7 @@ function M.logout(provider_name)
 end
 
 function M.show_agents()
-  local agents = require("tua.agents")
+  local agents = require("tau.agents")
   local files = agents.list_loaded_files()
 
   if #files == 0 then
@@ -235,7 +239,7 @@ function M.show_agents()
 end
 
 function M.list_logins()
-  local auth = require("tua.auth")
+  local auth = require("tau.auth")
   local providers = auth.list_providers()
   if #providers == 0 then
     vim.notify("No stored credentials", vim.log.levels.INFO)
@@ -245,9 +249,9 @@ function M.list_logins()
 end
 
 function M.send_mention()
-  local mention = require("tua.ui.complete").send_mention_for_buffer()
+  local mention = require("tau.ui.complete").send_mention_for_buffer()
   if mention then
-    local ui = require("tua.ui")
+    local ui = require("tau.ui")
     if not ui.active then
       M.show()
     end
@@ -263,7 +267,7 @@ function M.send_mention()
 end
 
 function M.attach_image(path)
-  local att = require("tua.attachments")
+  local att = require("tau.attachments")
   local result, err = att.attach_file(path)
   if not result then
     vim.notify(err, vim.log.levels.ERROR)
@@ -277,8 +281,8 @@ function M.paste_image()
 end
 
 function M.build_user_message(text, attachments)
-  local provider = require("tua.config").get().provider.name
-  return require("tua.attachments").build_user_message(text, attachments, provider)
+  local provider = require("tau.config").get().provider.name
+  return require("tau.attachments").build_user_message(text, attachments, provider)
 end
 
 function M.invoke(command)
@@ -302,21 +306,25 @@ function M.has_attention(tab_id)
 end
 
 function M.changed_files()
-  return require("tua.tools").get_changed_files()
+  return require("tau.tools").get_changed_files()
 end
 
 function M.run_turn(messages, opts)
-  local provider = require("tua.config").get().provider.name
-  return require("tua.dispatcher").run_turn(provider, messages, opts)
+  local provider = require("tau.config").get().provider.name
+  return require("tau.dispatcher").run_turn(provider, messages, opts)
 end
 
 function M.run_turn_streaming(messages, opts)
-  local provider = require("tua.config").get().provider.name
-  return require("tua.dispatcher").run_turn_streaming(provider, messages, opts)
+  local provider = require("tau.config").get().provider.name
+  return require("tau.dispatcher").run_turn_streaming(provider, messages, opts)
 end
 
 function M.get_tool_list()
-  return require("tua.tools").get_tool_list()
+  return require("tau.tools").get_tool_list()
+end
+
+function M.register_provider(plugin_module)
+  require("tau.plugin").register_provider(plugin_module)
 end
 
 return M

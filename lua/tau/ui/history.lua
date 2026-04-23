@@ -1,37 +1,37 @@
 local M = {}
 
-local HISTORY_NS = vim.api.nvim_create_namespace("tua_history")
+local HISTORY_NS = vim.api.nvim_create_namespace("tau_history")
 
 local HL = {
-  user = "TuaUserMessage",
-  assistant = "TuaAssistantMessage",
-  tool = "TuaToolBlock",
-  tool_error = "TuaToolError",
-  thinking = "TuaThinkingBlock",
-  system = "TuaSystemMessage",
-  timestamp = "TuaTimestamp",
-  separator = "TuaSeparator",
-  mention = "TuaMention",
-  command = "TuaCommand",
+  user = "TauUserMessage",
+  assistant = "TauAssistantMessage",
+  tool = "TauToolBlock",
+  tool_error = "TauToolError",
+  thinking = "TauThinkingBlock",
+  system = "TauSystemMessage",
+  timestamp = "TauTimestamp",
+  separator = "TauSeparator",
+  mention = "TauMention",
+  command = "TauCommand",
 }
 
 function M.setup_highlights()
   local highlights = {
-    TuaUserMessage = { link = "DiagnosticInfo", default = true },
-    TuaAssistantMessage = { link = "Normal", default = true },
-    TuaToolBlock = { link = "Comment", default = true },
-    TuaToolError = { link = "DiagnosticError", default = true },
-    TuaThinkingBlock = { link = "DiagnosticHint", default = true },
-    TuaSystemMessage = { link = "DiagnosticWarn", default = true },
-    TuaTimestamp = { link = "LineNr", default = true },
-    TuaSeparator = { link = "WinSeparator", default = true },
-    TuaMention = { link = "Underlined", default = true },
-    TuaCommand = { link = "Keyword", default = true },
-    TuaSpinner = { link = "DiagnosticInfo", default = true },
-    TuaStatusline = { link = "StatusLine", default = true },
-    TuaStatuslineWarn = { link = "DiagnosticWarn", default = true },
-    TuaStatuslineError = { link = "DiagnosticError", default = true },
-    TuaWelcome = { link = "Comment", default = true },
+    TauUserMessage = { link = "DiagnosticInfo", default = true },
+    TauAssistantMessage = { link = "Normal", default = true },
+    TauToolBlock = { link = "Comment", default = true },
+    TauToolError = { link = "DiagnosticError", default = true },
+    TauThinkingBlock = { link = "DiagnosticHint", default = true },
+    TauSystemMessage = { link = "DiagnosticWarn", default = true },
+    TauTimestamp = { link = "LineNr", default = true },
+    TauSeparator = { link = "WinSeparator", default = true },
+    TauMention = { link = "Underlined", default = true },
+    TauCommand = { link = "Keyword", default = true },
+    TauSpinner = { link = "DiagnosticInfo", default = true },
+    TauStatusline = { link = "StatusLine", default = true },
+    TauStatuslineWarn = { link = "DiagnosticWarn", default = true },
+    TauStatuslineError = { link = "DiagnosticError", default = true },
+    TauWelcome = { link = "Comment", default = true },
   }
 
   for name, def in pairs(highlights) do
@@ -45,7 +45,7 @@ function M.create_buffer()
   vim.bo[buf].bufhidden = "hide"
   vim.bo[buf].swapfile = false
   vim.bo[buf].modifiable = false
-  vim.bo[buf].filetype = "tua-history"
+  vim.bo[buf].filetype = "tau-history"
   return buf
 end
 
@@ -192,7 +192,7 @@ end
 function M.render_welcome(config)
   local lines = {
     "",
-    "  Welcome to tua",
+    "  Welcome to tau",
     "",
     "  Type your message and press <CR> to send.",
     "  <S-CR> for a new line.",
@@ -210,7 +210,7 @@ end
 
 function M.render_startup_info(session, config)
   local lines = {}
-  local agents = require("tua.agents")
+  local agents = require("tau.agents")
   local files = agents.list_loaded_files(session and session.cwd)
 
   table.insert(lines, "---")
