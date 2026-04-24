@@ -3,6 +3,16 @@ if vim.g.tau_loaded then
 end
 vim.g.tau_loaded = true
 
+_G.__tau_completefunc = function(findstart, base)
+	return require("tau.ui.complete").completefunc(findstart, base)
+end
+
+vim.schedule(function()
+	pcall(function()
+		require("tau.mentions").ensure_default()
+	end)
+end)
+
 local cmd = vim.api.nvim_create_user_command
 
 cmd("Tau", function(opts)
@@ -123,9 +133,13 @@ cmd("TauZen", function()
 	require("tau.ui.zen").toggle()
 end, { nargs = 0, desc = "Toggle zen mode" })
 
+cmd("TauPromptContext", function()
+	require("tau").insert_prompt_context({})
+end, { nargs = 0, desc = "Insert file/selection context into Tau prompt" })
+
 cmd("TauSendMention", function()
-	require("tau").send_mention()
-end, { nargs = 0, desc = "Insert @mention for current buffer/selection" })
+	require("tau").insert_prompt_context({})
+end, { nargs = 0, desc = "Alias for :TauPromptContext" })
 
 cmd("TauAgents", function()
 	require("tau").show_agents()

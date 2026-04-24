@@ -9,6 +9,9 @@ local defaults = {
 
 	models = nil,
 
+	mention_provider = "files",
+	mention_plugins = {},
+
 	layout = {
 		default = "side",
 		side = {
