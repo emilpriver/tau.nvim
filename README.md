@@ -74,18 +74,6 @@ Full command list lives in [`plugin/tau.lua`](plugin/tau.lua).
 
 ---
 
-## How it works (architecture)
-
-1. **`require("tau").setup`** merges config, registers the default **JSONL session storage**, loads **provider plugins** (`plugin.init`), and initializes **mentions**.
-2. **`:Tau` → `tau.ui.open`** creates or focuses the layout, starts a **new session** for that open (with system prompt from **`tau.agents`** when applicable), and wires keymaps.
-3. **Submitting the prompt** appends a user message, **`tau.dispatcher`** calls **`tau.api.stream`** for the configured provider; chunks update the history buffer.
-4. If the model returns **tool calls**, **`tau.tools`** executes them; results are appended and the model may be called again until text-only completion or a safety limit.
-5. **Autosave** writes the session JSONL file after messages and completed turns; **winbar** shows `title · provider | model` (title may be manual, LLM-generated, or a short id).
-
-Main Lua entrypoints: [`lua/tau/init.lua`](lua/tau/init.lua). UI: [`lua/tau/ui.lua`](lua/tau/ui.lua). API abstraction: [`lua/tau/api.lua`](lua/tau/api.lua). Provider modules can live under [`lua/plugin/`](lua/plugin/) or separate plugins.
-
----
-
 ## Configuration
 
 `setup({ ... })` accepts options merged into [`lua/tau/config.lua`](lua/tau/config.lua). Notable areas:
@@ -98,6 +86,10 @@ Main Lua entrypoints: [`lua/tau/init.lua`](lua/tau/init.lua). UI: [`lua/tau/ui.l
 | `mention_provider`, `mention_plugins` | Mention system |
 | `session` | `auto_llm_title` (default **off**), `title_max_chars_excerpt`, `title_max_length`, optional `title_model` |
 | `plugins` | List of Lua module names passed to `tau.plugin.init` (each should register a provider in `setup`) |
+
+**Available provider plugins:**
+
+- `plugin.opencode-go` — Opencode provider (add `plugins = { "plugin.opencode-go" }` to enable)
 
 Example — enable automatic LLM session titles and a dedicated title model:
 
