@@ -42,6 +42,35 @@ cmd("TauNew", function()
 	require("tau").new_session()
 end, { nargs = 0, desc = "Start a new tau session" })
 
+cmd("TauNewSession", function()
+	require("tau").new_session()
+end, { nargs = 0, desc = "Start a new tau session" })
+
+cmd("TauSessionName", function(opts)
+	require("tau").set_session_name(opts.args)
+end, { nargs = "*", desc = "Set display name for the current session" })
+
+cmd("TauSessionEnd", function()
+	require("tau").end_session()
+end, { nargs = 0, desc = "Stop streaming, close UI, clear tab session" })
+
+cmd("TauExport", function(opts)
+	local path = table.concat(opts.fargs or {}, " ")
+	require("tau").export_session_html(path)
+end, { nargs = "+", complete = "file", desc = "Export current session to HTML" })
+
+cmd("TauSessionInfo", function()
+	require("tau").session_info()
+end, { nargs = 0, desc = "Show session id, path, tokens, cost" })
+
+cmd("TauSessionTitleLlm", function(opts)
+	require("tau").generate_session_title({ force = opts.bang or false })
+end, {
+	bang = true,
+	nargs = 0,
+	desc = "Set session name via LLM (! replace existing name)",
+})
+
 cmd("TauContinue", function()
 	require("tau").continue_session()
 end, { nargs = 0, desc = "Continue the most recent session" })

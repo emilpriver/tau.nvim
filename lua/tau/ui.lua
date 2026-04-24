@@ -16,13 +16,34 @@ function M.open(opts)
 	local state = require("tau.state")
 
 	if M.active and layout.is_open(M.active.layout_state) then
+		if opts.resume then
+			local session = state.get_session()
+			M.active.session = session
+			history.refresh(M.active.hist_buf, session, M.active.config)
+			history.scroll_to_bottom(M.active.hist_buf, M.active.layout_state.history)
+			M.refresh_winbar()
+			layout.focus_prompt(M.active.layout_state)
+			return M.active
+		end
+		require("tau").new_session({ silent = true })
+		local session = state.get_session()
+		M.active.session = session
+		history.refresh(M.active.hist_buf, session, M.active.config)
+		history.scroll_to_bottom(M.active.hist_buf, M.active.layout_state.history)
+		M.refresh_winbar()
 		layout.focus_prompt(M.active.layout_state)
 		return M.active
 	end
 
-	local session = state.get_session()
-	if not session then
-		require("tau").new_session()
+	local session
+	if opts.resume then
+		session = state.get_session()
+		if not session then
+			require("tau").new_session({ silent = true })
+			session = state.get_session()
+		end
+	else
+		require("tau").new_session({ silent = true })
 		session = state.get_session()
 	end
 
@@ -61,25 +82,7 @@ function M.open(opts)
 	vim.wo[layout_state.prompt].relativenumber = false
 
 	local function get_info_str()
-		local cfg = require("tau.config").get()
-		local provider_name = session and session.provider or cfg.provider.name or "default"
-		local model = session and session.model or cfg.provider.model
-		if not model then
-			model = require("tau.models").get_active()
-		end
-		if not model then
-			local plugin = require("tau.plugin").get_provider(provider_name)
-			if plugin then
-				model = plugin.default_model
-			end
-		end
-		if not model then
-			local fallback = require("tau.plugin").get_fallback_models(provider_name)
-			if fallback and #fallback > 0 then
-				model = fallback[1]
-			end
-		end
-		return string.format(" %s | %s ", provider_name, model or "default")
+		return require("tau.session_display").winbar_text(session)
 	end
 
 	if config.layout.side.panels.history.winbar then
@@ -200,6 +203,7 @@ function M.open(opts)
 		augroup = augroup,
 	}
 
+	M.refresh_winbar()
 	layout.focus_prompt(layout_state)
 
 	return M.active
@@ -242,28 +246,26 @@ function M.refresh_winbar()
 	if not M.active then
 		return
 	end
-	local session = M.active.session
-	local cfg = require("tau.config").get()
-	local provider_name = session and session.provider or cfg.provider.name or "default"
-	local model = session and session.model or cfg.provider.model
-	if not model then
-		model = require("tau.models").get_active()
-	end
-	if not model then
-		local plugin = require("tau.plugin").get_provider(provider_name)
-		if plugin then
-			model = plugin.default_model
-		end
-	end
-	if not model then
-		local fallback = require("tau.plugin").get_fallback_models(provider_name)
-		if fallback and #fallback > 0 then
-			model = fallback[1]
-		end
-	end
-	local info_str = string.format(" %s | %s ", provider_name, model or "default")
+	local session = require("tau.state").get_session()
+	M.active.session = session
+	local info_str = require("tau.session_display").winbar_text(session)
 	local layout_state = M.active.layout_state
 	local config = M.active.config
+	if layout_state.layout == "float" and layout_state.main and vim.api.nvim_win_is_valid(layout_state.main) then
+		local short = "τ"
+		if session and session.name and session.name ~= "" then
+			short = session.name
+		elseif session and session.id and session.id ~= "" then
+			short = session.id
+			if #short > 28 then
+				short = short:sub(1, 25) .. "…"
+			end
+		end
+		pcall(vim.api.nvim_win_set_config, layout_state.main, {
+			title = " " .. short .. " ",
+			title_pos = "center",
+		})
+	end
 	if config.layout.side.panels.history.winbar then
 		pcall(function()
 			vim.wo[layout_state.history].winbar = " History " .. info_str
@@ -323,6 +325,10 @@ function M.on_submit(text)
 			_queued = true,
 			_queue_type = "steer",
 		})
+		local steer_session = require("tau.state").get_session()
+		if steer_session then
+			require("tau.session").TauSessionAutosave(steer_session)
+		end
 		M.refresh()
 		return
 	end
@@ -341,6 +347,7 @@ function M.on_submit(text)
 
 	local hist = require("tau.history")
 	table.insert(session.messages, hist.user(expanded))
+	require("tau.session").TauSessionAutosave(session)
 
 	M.refresh()
 	M.start_turn()
@@ -538,6 +545,11 @@ function M.finish_turn()
 	M.stop_busy()
 	M.refresh()
 	require("tau.state").update_session_tokens()
+	local s = require("tau.state").get_session()
+	if s then
+		require("tau.session").TauSessionAutosave(s)
+		require("tau.session_title").maybe_apply(s)
+	end
 
 	if queue.size() > 0 then
 		local next_msg = queue.pop()

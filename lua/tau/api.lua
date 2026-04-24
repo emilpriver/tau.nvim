@@ -38,6 +38,7 @@ local function get_model(provider_name)
 end
 
 function M.stream(provider_name, messages, opts)
+	opts = opts or {}
 	local plugin = plugins.get_provider(provider_name)
 	if not plugin then
 		error("Unknown provider: " .. provider_name)
@@ -45,12 +46,13 @@ function M.stream(provider_name, messages, opts)
 
 	local api_key = get_api_key(provider_name)
 	local base_url = get_base_url(provider_name)
-	local model = get_model(provider_name)
+	local model = opts.model or get_model(provider_name)
 
 	return plugin.stream(api_key, base_url, model, messages, opts)
 end
 
 function M.call(provider_name, messages, opts)
+	opts = opts or {}
 	local plugin = plugins.get_provider(provider_name)
 	if not plugin then
 		error("Unknown provider: " .. provider_name)
@@ -58,7 +60,7 @@ function M.call(provider_name, messages, opts)
 
 	local api_key = get_api_key(provider_name)
 	local base_url = get_base_url(provider_name)
-	local model = get_model(provider_name)
+	local model = opts.model or get_model(provider_name)
 
 	return plugin.call(api_key, base_url, model, messages, opts)
 end

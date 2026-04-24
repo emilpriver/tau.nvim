@@ -100,6 +100,13 @@ local defaults = {
 	},
 
 	on_widget = nil,
+
+	session = {
+		auto_llm_title = false,
+		title_max_chars_excerpt = 4000,
+		title_max_length = 56,
+		title_model = nil,
+	},
 }
 
 local active = nil

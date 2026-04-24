@@ -5,6 +5,7 @@ local config = require("tau.config")
 function M.setup(opts)
 	opts = opts or {}
 	config.setup(opts)
+	require("tau.session_storage").TauEnsureBuiltinRegistered()
 	require("tau.plugin").init({ plugins = opts.plugins })
 	require("tau.mentions").init({
 		mention_plugins = opts.mention_plugins or {},
@@ -47,7 +48,8 @@ function M.abort()
 	require("tau.rpc").abort()
 end
 
-function M.new_session()
+function M.new_session(opts)
+	opts = opts or {}
 	local state = require("tau.state")
 	local agents = require("tau.agents")
 	local tauConfig = require("tau.config").get()
@@ -67,7 +69,15 @@ function M.new_session()
 	end
 
 	state.set_session(nil, session)
-	vim.notify("New session started", vim.log.levels.INFO)
+	require("tau.session").TauSessionAutosave(session)
+	local ui = require("tau.ui")
+	if ui.active then
+		ui.active.session = session
+		ui.refresh()
+	end
+	if not opts.silent then
+		vim.notify("New session started", vim.log.levels.INFO)
+	end
 end
 
 function M.continue_session()
@@ -75,7 +85,7 @@ function M.continue_session()
 end
 
 function M.resume_session()
-	require("tau.session").list_sessions(vim.fn.getcwd())
+	require("tau.session").pick_and_load(vim.fn.getcwd())
 end
 
 function M.compact(instructions)
@@ -97,6 +107,7 @@ function M.compact(instructions)
 	session.messages = compacted
 	session.compacted_count = (session.compacted_count or 0) + 1
 	state.update_session_tokens()
+	require("tau.session").TauSessionAutosave(session)
 
 	local after = context.count_messages_tokens(session.messages)
 	vim.notify(
@@ -331,6 +342,54 @@ end
 
 function M.register_provider(plugin_module)
 	require("tau.plugin").register_provider(plugin_module)
+end
+
+function M.register_session_storage(name, provider)
+	require("tau.session_storage").TauRegisterSessionStorage(name, provider)
+end
+
+function M.set_session_storage(name)
+	return require("tau.session_storage").TauSetSessionStorage(name)
+end
+
+function M.get_session_storage()
+	return require("tau.session_storage").TauGetSessionStorage()
+end
+
+M.TauRegisterSessionStorage = M.register_session_storage
+M.TauSetSessionStorage = M.set_session_storage
+M.TauGetSessionStorage = M.get_session_storage
+
+function M.end_session()
+	require("tau.session").TauSessionEnd()
+end
+
+function M.set_session_name(name)
+	require("tau.session").TauSessionSetName(name)
+end
+
+function M.export_session_html(path)
+	require("tau.session").TauSessionExportHtml(path)
+end
+
+function M.session_info()
+	require("tau.session").TauSessionInfo()
+end
+
+function M.generate_session_title(opts)
+	require("tau.session_title").generate_now(opts or {})
+end
+
+function M.TauSessionTree()
+	require("tau.session").TauSessionTree()
+end
+
+function M.TauSessionFork(message_index)
+	require("tau.session").TauSessionFork(message_index)
+end
+
+function M.TauSessionClone()
+	require("tau.session").TauSessionClone()
 end
 
 function M.get_mention_provider()

@@ -217,51 +217,13 @@ function M.exit()
   local config = ui.active.config
   if config.layout.side.panels.history.winbar then
     pcall(function()
-      local session = ui.active.session
-      local cfg = require("tau.config").get()
-      local provider_name = session and session.provider or cfg.provider.name or "default"
-      local model = session and session.model or cfg.provider.model
-      if not model then
-        model = require("tau.models").get_active()
-      end
-      if not model then
-        local plugin = require("tau.plugin").get_provider(provider_name)
-        if plugin then
-          model = plugin.default_model
-        end
-      end
-      if not model then
-        local fallback = require("tau.plugin").get_fallback_models(provider_name)
-        if fallback and #fallback > 0 then
-          model = fallback[1]
-        end
-      end
-      local info_str = string.format(" %s | %s ", provider_name, model or "default")
+      local info_str = require("tau.session_display").winbar_text(ui.active.session)
       vim.wo[ls.history].winbar = " History " .. info_str
     end)
   end
   if config.layout.side.panels.prompt.winbar then
     pcall(function()
-      local session = ui.active.session
-      local cfg = require("tau.config").get()
-      local provider_name = session and session.provider or cfg.provider.name or "default"
-      local model = session and session.model or cfg.provider.model
-      if not model then
-        model = require("tau.models").get_active()
-      end
-      if not model then
-        local plugin = require("tau.plugin").get_provider(provider_name)
-        if plugin then
-          model = plugin.default_model
-        end
-      end
-      if not model then
-        local fallback = require("tau.plugin").get_fallback_models(provider_name)
-        if fallback and #fallback > 0 then
-          model = fallback[1]
-        end
-      end
-      local info_str = string.format(" %s | %s ", provider_name, model or "default")
+      local info_str = require("tau.session_display").winbar_text(ui.active.session)
       vim.wo[new_prompt].winbar = " Prompt " .. info_str
     end)
   end
