@@ -1,4 +1,7 @@
-# tau.nvim
+<div align="center">
+  <h1 text-align style="width:100%">Tau.nvim</h1>
+  <img alt="yoshi" width="500" src="https://github.com/emilpriver/tau.nvim/blob/main/logo.png?raw=true" />
+</div>
 
 **tau.nvim** is a Neovim plugin that embeds an **AI coding agent** in your editor: a chat UI with **streaming replies**, **tool use** (read/write files, run commands, Neovim buffers, etc.), **sessions** persisted to disk, **@mentions** for file context, and **AGENTS.md**-style project instructions. Providers (LLM backends) are **pluggable**: load them via `setup({ plugins = ... })` and/or `register_provider`.
 
