@@ -166,10 +166,14 @@ function builtin.load_session(cwd, session_id)
 	if not session_meta then
 		return nil
 	end
+	local loaded_name = session_meta.name
+	if type(loaded_name) ~= "string" or loaded_name == "" then
+		loaded_name = nil
+	end
 	return {
 		id = session_meta.id,
 		cwd = session_meta.cwd,
-		name = session_meta.name,
+		name = loaded_name,
 		parent_id = session_meta.parent_id,
 		messages = messages,
 		model = session_meta.model,
@@ -196,11 +200,15 @@ function builtin.save_session(session)
 	local model = session.model or require("tau.config").get().provider.model
 	session.tokens_used = context.count_messages_tokens(session.messages or {})
 	session.context_limit = context.get_context_limit(model)
+	local name_str = nil
+	if type(session.name) == "string" and session.name ~= "" then
+		name_str = session.name
+	end
 	local head = {
 		kind = "session",
 		id = session.id,
 		cwd = session.cwd,
-		name = session.name,
+		name = name_str,
 		parent_id = session.parent_id,
 		model = session.model,
 		provider = session.provider,
@@ -215,7 +223,26 @@ function builtin.save_session(session)
 	for _, msg in ipairs(session.messages or {}) do
 		table.insert(lines, vim.json.encode({ kind = "message", msg = msg }))
 	end
-	vim.fn.writefile(lines, path)
+	local wok, werr = pcall(vim.fn.writefile, lines, path, "s")
+	if not wok then
+		wok, werr = pcall(vim.fn.writefile, lines, path)
+	end
+	if not wok then
+		return false, tostring(werr or "writefile failed")
+	end
+	if name_str then
+		local verify = vim.fn.readfile(path)
+		if not verify or verify[1] == nil or verify[1] == "" then
+			return false, "session file empty after write"
+		end
+		local dec_ok, meta = pcall(vim.json.decode, verify[1])
+		if not dec_ok or type(meta) ~= "table" or meta.kind ~= "session" then
+			return false, "session header corrupt after write"
+		end
+		if meta.name ~= name_str then
+			return false, "session name missing in file (got " .. tostring(meta.name) .. ")"
+		end
+	end
 	return true
 end
 

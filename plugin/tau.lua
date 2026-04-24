@@ -63,6 +63,14 @@ cmd("TauSessionInfo", function()
 	require("tau").session_info()
 end, { nargs = 0, desc = "Show session id, path, tokens, cost" })
 
+cmd("TauSessionTitleLlm", function(opts)
+	require("tau").generate_session_title({ force = opts.bang or false })
+end, {
+	bang = true,
+	nargs = 0,
+	desc = "Set session name via LLM (! replace existing name)",
+})
+
 cmd("TauContinue", function()
 	require("tau").continue_session()
 end, { nargs = 0, desc = "Continue the most recent session" })

@@ -9,12 +9,13 @@ end
 
 function M.TauSessionAutosave(session)
 	if not session then
-		return
+		return false, "no session"
 	end
 	local ok, err = store().save_session(session)
 	if not ok then
 		vim.notify(tostring(err or "session save failed"), vim.log.levels.WARN)
 	end
+	return ok, err
 end
 
 function M.load_most_recent(cwd)

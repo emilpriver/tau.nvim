@@ -70,6 +70,11 @@ function M.new_session(opts)
 
 	state.set_session(nil, session)
 	require("tau.session").TauSessionAutosave(session)
+	local ui = require("tau.ui")
+	if ui.active then
+		ui.active.session = session
+		ui.refresh()
+	end
 	if not opts.silent then
 		vim.notify("New session started", vim.log.levels.INFO)
 	end
@@ -369,6 +374,10 @@ end
 
 function M.session_info()
 	require("tau.session").TauSessionInfo()
+end
+
+function M.generate_session_title(opts)
+	require("tau.session_title").generate_now(opts or {})
 end
 
 function M.TauSessionTree()
