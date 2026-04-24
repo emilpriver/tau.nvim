@@ -125,7 +125,7 @@ M.tools = {
   },
   open_file_to_buffer = {
     name = "open_file_to_buffer",
-    description = "Open a file from disk in a Neovim buffer and show it in the user's current window. Creates an empty buffer if the file does not exist yet. Use this so the user sees the file in their editor; use read when you only need content without changing their view.",
+    description = "Open a file from disk in a Neovim buffer in the user's main editor window (not Tau chat panels). Creates an empty buffer if the file does not exist yet. Use this so the user sees the file in their editor; use read when you only need content without changing their view.",
     parameters = {
       type = "object",
       properties = {

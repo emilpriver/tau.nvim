@@ -13,6 +13,45 @@ local function resolve_path(path)
 	return vim.fn.getcwd() .. "/" .. path
 end
 
+local function pick_editor_win()
+	local ls = nil
+	local ok, ui = pcall(require, "tau.ui")
+	if ok and ui.active and ui.active.layout_state then
+		ls = ui.active.layout_state
+	end
+
+	local function is_tau_win(w)
+		if not ls then
+			return false
+		end
+		if w == ls.history or w == ls.prompt then
+			return true
+		end
+		if ls.main and w == ls.main then
+			return true
+		end
+		return false
+	end
+
+	if ls and ls.original_win and vim.api.nvim_win_is_valid(ls.original_win) and not vim.wo[ls.original_win].winfixbuf then
+		return ls.original_win
+	end
+
+	for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+		if vim.api.nvim_win_is_valid(win) and not is_tau_win(win) and not vim.wo[win].winfixbuf then
+			return win
+		end
+	end
+
+	for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+		if vim.api.nvim_win_is_valid(win) and not vim.wo[win].winfixbuf then
+			return win
+		end
+	end
+
+	return vim.api.nvim_get_current_win()
+end
+
 function M.open_buffers_tool(input)
 	local buffers = vim.api.nvim_list_bufs()
 	local current_buf = vim.api.nvim_get_current_buf()
@@ -219,16 +258,20 @@ function M.open_file_to_buffer_tool(input)
 		return { error = "Path is a directory, not a file: " .. full }
 	end
 
+	local win = pick_editor_win()
+	vim.api.nvim_set_current_win(win)
+
 	if split then
 		if split == "vertical" or split == "v" then
 			vim.cmd("vsplit")
 		elseif split == "horizontal" or split == "h" or split == "s" then
 			vim.cmd("split")
 		end
+		win = vim.api.nvim_get_current_win()
 	end
 
-	local win = vim.api.nvim_get_current_win()
 	vim.cmd("edit " .. vim.fn.fnameescape(full))
+	win = vim.api.nvim_get_current_win()
 
 	local bufnr = vim.api.nvim_win_get_buf(win)
 	local name = vim.api.nvim_buf_get_name(bufnr)
