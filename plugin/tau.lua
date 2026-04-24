@@ -72,6 +72,10 @@ cmd("TauToggleLayout", function()
 	require("tau").toggle()
 end, { nargs = 0, desc = "Toggle chat layout without losing state" })
 
+cmd("TauClose", function()
+	require("tau").close()
+end, { nargs = 0, desc = "Close the tau chat and history" })
+
 cmd("TauToggleChat", function()
 	require("tau").toggle()
 end, { nargs = 0, desc = "Toggle chat visibility" })

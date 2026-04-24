@@ -159,6 +159,11 @@ function M.close()
 		return
 	end
 
+	if M.active.is_busy then
+		require("tau.dispatcher").stop()
+		queue.set_busy(false)
+	end
+
 	if M.active.augroup then
 		vim.api.nvim_del_augroup_by_id(M.active.augroup)
 	end
