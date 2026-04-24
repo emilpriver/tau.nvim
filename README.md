@@ -164,25 +164,6 @@ Defined in [`lua/tau/tools.lua`](lua/tau/tools.lua). The model receives a schema
 2. Confirm **`require("tau.config").get().provider.name`** matches a loaded provider and that credentials are configured (env vars and/or `:TauLogin` as documented for that provider).
 3. If session titles or names look wrong, check **`:TauSessionInfo`** and the JSONL file under **`stdpath("state")/tau/sessions/`**.
 
----
-
-## Repository layout (reference)
-
-| Path | Role |
-|------|------|
-| `plugin/tau.lua` | User commands |
-| `lua/tau/init.lua` | Public `require("tau")` API |
-| `lua/tau/config.lua` | Defaults and `setup` merge |
-| `lua/tau/ui/` | Layout, history, prompt, completion, zen |
-| `lua/tau/dispatcher.lua` | Tool loop + streaming orchestration |
-| `lua/tau/session*.lua` | Sessions, storage, titles, display |
-| `lua/tau/tools.lua` | Tool definitions and execution |
-| `lua/tau/agents.lua` | AGENTS.md loading |
-| `lua/tau/mentions/` | Mention providers |
-| `lua/plugin/` | Provider modules (e.g. [Opencode](lua/plugin/opencode-go/README.md)) |
-
----
-
 ## Contributing & AI use
 
 See [`AI_USAGE.md`](AI_USAGE.md) for expectations around AI-assisted contributions.
