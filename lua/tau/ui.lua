@@ -17,6 +17,7 @@ function M.open(opts)
 
 	if M.active and layout.is_open(M.active.layout_state) then
 		if opts.resume then
+			M.active.tau_tab_id = vim.api.nvim_get_current_tabpage()
 			local session = state.get_session()
 			M.active.session = session
 			history.refresh(M.active.hist_buf, session, M.active.config)
@@ -26,6 +27,7 @@ function M.open(opts)
 			return M.active
 		end
 		require("tau").new_session({ silent = true })
+		M.active.tau_tab_id = vim.api.nvim_get_current_tabpage()
 		local session = state.get_session()
 		M.active.session = session
 		history.refresh(M.active.hist_buf, session, M.active.config)
@@ -197,6 +199,7 @@ function M.open(opts)
 		hist_buf = hist_buf,
 		prompt_buf = prompt_buf,
 		session = session,
+		tau_tab_id = vim.api.nvim_get_current_tabpage(),
 		config = config,
 		spinner_handle = nil,
 		is_busy = false,
@@ -246,8 +249,19 @@ function M.refresh_winbar()
 	if not M.active then
 		return
 	end
-	local session = require("tau.state").get_session()
-	M.active.session = session
+	local state = require("tau.state")
+	local tid = M.active.tau_tab_id
+	local session
+	if tid then
+		session = state.get_session(tid) or M.active.session
+	else
+		session = state.get_session()
+	end
+	if session then
+		M.active.session = session
+	else
+		session = M.active.session
+	end
 	local info_str = require("tau.session_display").winbar_text(session)
 	local layout_state = M.active.layout_state
 	local config = M.active.config
@@ -283,7 +297,20 @@ function M.refresh()
 		return
 	end
 
-	local session = require("tau.state").get_session()
+	local state = require("tau.state")
+	local tid = M.active.tau_tab_id
+	local session
+	if tid then
+		session = state.get_session(tid) or M.active.session
+	else
+		session = state.get_session()
+	end
+	if not session and M.active.session then
+		session = M.active.session
+	end
+	if session then
+		M.active.session = session
+	end
 	history.refresh(M.active.hist_buf, session, M.active.config)
 	history.scroll_to_bottom(M.active.hist_buf, M.active.layout_state.history)
 	M.refresh_winbar()
@@ -365,6 +392,7 @@ function M.start_turn()
 
 	M.active.is_busy = true
 	M.active.thinking_line_idx = nil
+	M.active.busy_status_line_1 = nil
 	queue.set_busy(true)
 	M.start_busy()
 
@@ -403,6 +431,21 @@ function M.start_turn()
 	local function ensure_streaming_header()
 		if streaming_header_added or not M.active then
 			return
+		end
+		if M.active.spinner_handle then
+			M.active.spinner_handle.stop()
+			M.active.spinner_handle = nil
+		end
+		if M.active.busy_status_line_1 and M.active.hist_buf and vim.api.nvim_buf_is_valid(M.active.hist_buf) then
+			local buf = M.active.hist_buf
+			local n = M.active.busy_status_line_1
+			local nlines = vim.api.nvim_buf_line_count(buf)
+			if n >= 1 and n <= nlines then
+				vim.bo[buf].modifiable = true
+				vim.api.nvim_buf_set_lines(buf, n - 1, n, false, {})
+				vim.bo[buf].modifiable = false
+			end
+			M.active.busy_status_line_1 = nil
 		end
 		streaming_header_added = true
 		local buf = M.active.hist_buf
@@ -481,7 +524,6 @@ function M.start_turn()
 		lines[1] = last_line .. lines[1]
 		vim.api.nvim_buf_set_lines(buf, count - 1, count, false, lines)
 		vim.bo[buf].modifiable = false
-		add_thinking_line()
 		require("tau.ui.history").scroll_to_bottom(buf, M.active.layout_state.history)
 	end
 
@@ -575,12 +617,17 @@ function M.start_busy()
 		local count = vim.api.nvim_buf_line_count(buf)
 		vim.api.nvim_buf_set_lines(buf, count, count, false, { "  🤖 Thinking..." })
 		vim.bo[buf].modifiable = false
+		M.active.busy_status_line_1 = vim.api.nvim_buf_line_count(buf)
 	end)
 
 	M.active.spinner_handle = spinner.start({
 		spinner = config.spinner,
 		on_update = function(frame)
 			if not M.active or not M.active.hist_buf then
+				return
+			end
+			local line_1 = M.active.busy_status_line_1
+			if not line_1 or line_1 < 1 then
 				return
 			end
 			local elapsed = vim.fn.localtime() - start_time
@@ -590,9 +637,15 @@ function M.start_busy()
 			local text = string.format("  🤖 %s Thinking... %s", frame, time_str)
 			local b = M.active.hist_buf
 			pcall(function()
+				if not vim.api.nvim_buf_is_valid(b) then
+					return
+				end
+				local nlines = vim.api.nvim_buf_line_count(b)
+				if line_1 > nlines then
+					return
+				end
 				vim.bo[b].modifiable = true
-				local count = vim.api.nvim_buf_line_count(b)
-				vim.api.nvim_buf_set_lines(b, count - 1, count, false, { text })
+				vim.api.nvim_buf_set_lines(b, line_1 - 1, line_1, false, { text })
 				vim.bo[b].modifiable = false
 			end)
 		end,
@@ -608,6 +661,7 @@ function M.stop_busy()
 		M.active.spinner_handle.stop()
 		M.active.spinner_handle = nil
 	end
+	M.active.busy_status_line_1 = nil
 
 	if M.active.thinking_line_idx then
 		local b = M.active.hist_buf

@@ -34,6 +34,7 @@ function M.load_most_recent(cwd)
 	require("tau.state").set_session(nil, session)
 	local ui = require("tau.ui")
 	if ui.active and layout.is_open(ui.active.layout_state) then
+		ui.active.tau_tab_id = vim.api.nvim_get_current_tabpage()
 		ui.active.session = session
 		ui.refresh()
 	else
@@ -79,6 +80,7 @@ function M.pick_and_load(cwd)
 		require("tau.state").set_session(nil, session)
 		local ui = require("tau.ui")
 		if ui.active and layout.is_open(ui.active.layout_state) then
+			ui.active.tau_tab_id = vim.api.nvim_get_current_tabpage()
 			ui.active.session = session
 			ui.refresh()
 		else
@@ -218,6 +220,7 @@ function M.TauSessionFork(message_index)
 	M.TauSessionAutosave(new_session)
 	local ui = require("tau.ui")
 	if ui.active then
+		ui.active.tau_tab_id = vim.api.nvim_get_current_tabpage()
 		ui.active.session = new_session
 		ui.refresh()
 	end
@@ -245,6 +248,7 @@ function M.TauSessionClone()
 	M.TauSessionAutosave(new_session)
 	local ui = require("tau.ui")
 	if ui.active then
+		ui.active.tau_tab_id = vim.api.nvim_get_current_tabpage()
 		ui.active.session = new_session
 		ui.refresh()
 	end
