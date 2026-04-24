@@ -14,7 +14,7 @@ The expectations below are our project rules, written in the same spirit as the 
 
 **Avoid unnecessary complexity.** LLMs often add more abstraction, indirection, or generality than the task needs; that makes changes easier to **question, rewrite, or reject** in review. Prefer the smallest change that solves the problem and matches surrounding style.
 
-**Verify locally.** Run tests, `clippy`, and formatting as appropriate. Generated code can compile and still be wrong or brittle.
+**Verify locally.** Run tests and formatting as appropriate. Generated code can compile and still be wrong or brittle.
 
 **Licensing.** Contributions must comply with this repository’s license (see [`LICENSE`](LICENSE)). Do not submit code you are not allowed to distribute under those terms. When in doubt, ask before opening a PR.
 

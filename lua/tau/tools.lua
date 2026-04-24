@@ -123,6 +123,19 @@ M.tools = {
       required = { "bufnr" },
     },
   },
+  open_file_to_buffer = {
+    name = "open_file_to_buffer",
+    description = "Open a file from disk in a Neovim buffer in the user's main editor window (not Tau chat panels). Creates an empty buffer if the file does not exist yet. Use this so the user sees the file in their editor; use read when you only need content without changing their view.",
+    parameters = {
+      type = "object",
+      properties = {
+        path = { type = "string", description = "Path to the file (relative or absolute)" },
+        line = { type = "number", description = "Optional line number to jump to (1-indexed)" },
+        split = { type = "string", description = "Optional: 'vertical' or 'horizontal' to open in a new split" },
+      },
+      required = { "path" },
+    },
+  },
   tree = {
     name = "tree",
     description = "List all files and folders in a directory recursively. Returns a tree-like listing. Defaults to the current working directory. Use this to explore the project structure.",
@@ -671,6 +684,7 @@ local TOOL_MAP = {
   read_buffer = buffer_tools.read_buffer_tool,
   edit_buffer = buffer_tools.edit_buffer_tool,
   goto_buffer = buffer_tools.goto_buffer_tool,
+  open_file_to_buffer = buffer_tools.open_file_to_buffer_tool,
 }
 
 function M.execute(tool_name, input)

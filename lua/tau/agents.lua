@@ -212,6 +212,7 @@ Available tools:
 - read_buffer: Read contents of an open buffer by bufnr (supports offset/limit)
 - edit_buffer: Edit an open buffer with exact text replacement (via Neovim API)
 - goto_buffer: Switch the user's view to a specific buffer
+- open_file_to_buffer: Open a file path in the main editor window, not Tau panels (optional line jump and split)
 
 Prefer grep/find/ls over bash for file discovery. Use edit for precise changes, write for new files or complete rewrites. When editing buffers, prefer edit_buffer over write to preserve unsaved changes.
 ]]

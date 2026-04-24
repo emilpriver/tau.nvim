@@ -3,6 +3,55 @@ local M = {}
 local MAX_OUTPUT_LINES = 2000
 local MAX_OUTPUT_BYTES = 50 * 1024
 
+local function resolve_path(path)
+	if vim.fn.has("win32") == 1 and path:match("^%a:/") then
+		return path
+	end
+	if path:sub(1, 1) == "/" or path:sub(1, 1) == "~" then
+		return vim.fn.expand(path)
+	end
+	return vim.fn.getcwd() .. "/" .. path
+end
+
+local function pick_editor_win()
+	local ls = nil
+	local ok, ui = pcall(require, "tau.ui")
+	if ok and ui.active and ui.active.layout_state then
+		ls = ui.active.layout_state
+	end
+
+	local function is_tau_win(w)
+		if not ls then
+			return false
+		end
+		if w == ls.history or w == ls.prompt then
+			return true
+		end
+		if ls.main and w == ls.main then
+			return true
+		end
+		return false
+	end
+
+	if ls and ls.original_win and vim.api.nvim_win_is_valid(ls.original_win) and not vim.wo[ls.original_win].winfixbuf then
+		return ls.original_win
+	end
+
+	for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+		if vim.api.nvim_win_is_valid(win) and not is_tau_win(win) and not vim.wo[win].winfixbuf then
+			return win
+		end
+	end
+
+	for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+		if vim.api.nvim_win_is_valid(win) and not vim.wo[win].winfixbuf then
+			return win
+		end
+	end
+
+	return vim.api.nvim_get_current_win()
+end
+
 function M.open_buffers_tool(input)
 	local buffers = vim.api.nvim_list_bufs()
 	local current_buf = vim.api.nvim_get_current_buf()
@@ -190,6 +239,54 @@ function M.edit_buffer_tool(input)
 		bufnr = bufnr,
 		lines_before = orig_line_count,
 		lines_after = new_line_count,
+	}
+end
+
+function M.open_file_to_buffer_tool(input)
+	local path = input.path
+	local line_nr = input.line
+	local split = input.split
+
+	if not path or path == "" then
+		return { error = "path is required" }
+	end
+
+	local full = resolve_path(path)
+	full = vim.fn.fnamemodify(full, ":p")
+
+	if vim.fn.isdirectory(full) == 1 then
+		return { error = "Path is a directory, not a file: " .. full }
+	end
+
+	local win = pick_editor_win()
+	vim.api.nvim_set_current_win(win)
+
+	if split then
+		if split == "vertical" or split == "v" then
+			vim.cmd("vsplit")
+		elseif split == "horizontal" or split == "h" or split == "s" then
+			vim.cmd("split")
+		end
+		win = vim.api.nvim_get_current_win()
+	end
+
+	vim.cmd("edit " .. vim.fn.fnameescape(full))
+	win = vim.api.nvim_get_current_win()
+
+	local bufnr = vim.api.nvim_win_get_buf(win)
+	local name = vim.api.nvim_buf_get_name(bufnr)
+	local line_count = vim.api.nvim_buf_line_count(bufnr)
+
+	if type(line_nr) == "number" and line_nr >= 1 then
+		line_nr = math.min(line_nr, math.max(1, line_count))
+		pcall(vim.api.nvim_win_set_cursor, win, { line_nr, 0 })
+	end
+
+	return {
+		text = "Opened in buffer bufnr=" .. bufnr .. " (" .. line_count .. " lines): " .. name,
+		bufnr = bufnr,
+		path = name,
+		line_count = line_count,
 	}
 end
 

@@ -162,16 +162,34 @@ function M.refresh_models()
 	require("tau.models").refresh()
 end
 
+local function trim(s)
+	return s:match("^%s*(.-)%s*$")
+end
+
 function M.login(provider_name)
+	provider_name = trim(provider_name)
+	if not provider_name or provider_name == "" then
+		vim.notify("missing provider", vim.log.levels.ERROR)
+		return
+	end
+
 	local auth = require("tau.auth")
-	local info = auth.PROVIDER_HELP[provider_name]
+	local plugin = require("tau.plugin")
+
+	if not plugin.auth_help or vim.tbl_isempty(plugin.auth_help) then
+		vim.notify("No registered providers", vim.log.levels.ERROR)
+		return
+	end
+
+	local info = plugin.get_auth_help(provider_name)
 
 	if not info then
+		local supported = {}
+		for name in pairs(plugin.auth_help or {}) do
+			table.insert(supported, name)
+		end
 		vim.notify(
-			"Unknown provider: "
-				.. provider_name
-				.. ". Supported: "
-				.. table.concat(vim.tbl_keys(auth.PROVIDER_HELP), ", "),
+			"Unknown provider: " .. provider_name .. ". Supported: " .. table.concat(supported, ", "),
 			vim.log.levels.ERROR
 		)
 		return

@@ -128,6 +128,23 @@ function M.open(opts)
 
 	prompt.set_completefunc(prompt_buf)
 
+	local function is_tau_win(win)
+		if not M.active then
+			return false
+		end
+		local ls = M.active.layout_state
+		return win == ls.history or win == ls.prompt
+	end
+
+	local function find_alt_win()
+		for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+			if vim.api.nvim_win_is_valid(win) and not is_tau_win(win) then
+				return win
+			end
+		end
+		return nil
+	end
+
 	local augroup = vim.api.nvim_create_augroup("tau_refresh", { clear = true })
 	vim.api.nvim_create_autocmd("BufEnter", {
 		group = augroup,
@@ -135,6 +152,40 @@ function M.open(opts)
 			if M.active then
 				M.refresh()
 			end
+		end,
+	})
+
+	vim.api.nvim_create_autocmd("BufWinEnter", {
+		group = augroup,
+		callback = function(args)
+			if not M.active then
+				return
+			end
+			local win = vim.api.nvim_get_current_win()
+			if not is_tau_win(win) then
+				return
+			end
+			local buf = args.buf
+			if vim.bo[buf].buftype ~= "" then
+				return
+			end
+			local ls = M.active.layout_state
+			local tau_buf = win == ls.history and M.active.hist_buf or M.active.prompt_buf
+			if buf == tau_buf then
+				return
+			end
+			local alt = find_alt_win()
+			if not alt then
+				vim.cmd("wincmd p")
+				alt = vim.api.nvim_get_current_win()
+				if is_tau_win(alt) then
+					vim.cmd("vsplit")
+					alt = vim.api.nvim_get_current_win()
+				end
+			end
+			vim.api.nvim_win_set_buf(alt, buf)
+			vim.api.nvim_win_set_buf(win, tau_buf)
+			vim.api.nvim_set_current_win(alt)
 		end,
 	})
 
@@ -157,6 +208,11 @@ end
 function M.close()
 	if not M.active then
 		return
+	end
+
+	if M.active.is_busy then
+		require("tau.dispatcher").stop()
+		queue.set_busy(false)
 	end
 
 	if M.active.augroup then
