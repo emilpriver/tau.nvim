@@ -80,6 +80,14 @@ cmd("TauToggleChat", function()
 	require("tau").toggle()
 end, { nargs = 0, desc = "Toggle chat visibility" })
 
+cmd("TauGoToChat", function()
+	require("tau").focus_prompt()
+end, { nargs = 0, desc = "Jump focus to the tau chat (prompt)" })
+
+cmd("TauGoToHistory", function()
+	require("tau").focus_history()
+end, { nargs = 0, desc = "Jump focus to the tau history" })
+
 cmd("TauToggleThinking", function()
 	require("tau").toggle_thinking()
 end, { nargs = 0, desc = "Toggle thinking visibility" })
