@@ -124,11 +124,6 @@ function M.select_model()
 	end)
 end
 
-function M.cycle_model()
-	require("tau.models").cycle()
-	M.sync_session_model()
-end
-
 function M.sync_session_model()
 	local session = require("tau.state").get_session()
 	if session then

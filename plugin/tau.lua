@@ -87,10 +87,6 @@ cmd("TauModel", function()
 	require("tau").select_model()
 end, { nargs = 0, desc = "Select a model" })
 
-cmd("TauCycleModel", function()
-	require("tau").cycle_model()
-end, { nargs = 0, desc = "Cycle to the next model" })
-
 cmd("TauCheckHealth", function()
 	require("tau.health").run()
 end, { nargs = 0, desc = "Run tau health checks" })
