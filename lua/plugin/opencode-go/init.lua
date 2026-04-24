@@ -79,6 +79,44 @@ local function get_string(val)
 	return nil
 end
 
+local function content_to_string(content)
+	if content == nil or content == vim.NIL then
+		return ""
+	end
+	if type(content) == "string" then
+		return content
+	end
+	if type(content) ~= "table" then
+		return ""
+	end
+	if type(content.text) == "string" and content.text ~= "" and not content[1] then
+		return content.text
+	end
+	local out = {}
+	for i = 1, #content do
+		local p = content[i]
+		if type(p) == "string" and p ~= "" then
+			table.insert(out, p)
+		elseif type(p) == "table" and type(p.text) == "string" and p.text ~= "" then
+			table.insert(out, p.text)
+		end
+	end
+	if #out == 0 then
+		for _, p in pairs(content) do
+			if type(p) == "table" and type(p.text) == "string" and p.text ~= "" then
+				table.insert(out, p.text)
+			end
+		end
+	end
+	if #out > 0 then
+		return table.concat(out, "")
+	end
+	if type(content.text) == "string" and content.text ~= "" then
+		return content.text
+	end
+	return ""
+end
+
 local function extract_error(parsed)
 	if not parsed or not parsed.error then
 		return nil
@@ -153,7 +191,7 @@ local function parse_response(response)
 		return { text = "", thinking = "", tool_uses = {}, usage = response.usage }
 	end
 	local message = choice.message
-	local text = get_string(message.content) or ""
+	local text = get_string(message.content) or content_to_string(message.content) or ""
 	local thinking = get_string(message.reasoning) or get_string(message.reasoning_content) or ""
 	local tool_uses = {}
 	if message.tool_calls then

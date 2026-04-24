@@ -73,6 +73,7 @@ function M.new_session(opts)
 	require("tau.session").TauSessionAutosave(session)
 	local ui = require("tau.ui")
 	if ui.active then
+		ui.active.tau_tab_id = vim.api.nvim_get_current_tabpage()
 		ui.active.session = session
 		ui.refresh()
 	end

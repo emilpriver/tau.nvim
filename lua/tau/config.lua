@@ -102,7 +102,7 @@ local defaults = {
 	on_widget = nil,
 
 	session = {
-		auto_llm_title = false,
+		auto_llm_title = true,
 		title_max_chars_excerpt = 4000,
 		title_max_length = 56,
 		title_model = nil,

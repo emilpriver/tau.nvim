@@ -17,6 +17,7 @@ function M.open(opts)
 
 	if M.active and layout.is_open(M.active.layout_state) then
 		if opts.resume then
+			M.active.tau_tab_id = vim.api.nvim_get_current_tabpage()
 			local session = state.get_session()
 			M.active.session = session
 			history.refresh(M.active.hist_buf, session, M.active.config)
@@ -26,6 +27,7 @@ function M.open(opts)
 			return M.active
 		end
 		require("tau").new_session({ silent = true })
+		M.active.tau_tab_id = vim.api.nvim_get_current_tabpage()
 		local session = state.get_session()
 		M.active.session = session
 		history.refresh(M.active.hist_buf, session, M.active.config)
@@ -197,6 +199,7 @@ function M.open(opts)
 		hist_buf = hist_buf,
 		prompt_buf = prompt_buf,
 		session = session,
+		tau_tab_id = vim.api.nvim_get_current_tabpage(),
 		config = config,
 		spinner_handle = nil,
 		is_busy = false,
@@ -246,8 +249,19 @@ function M.refresh_winbar()
 	if not M.active then
 		return
 	end
-	local session = require("tau.state").get_session()
-	M.active.session = session
+	local state = require("tau.state")
+	local tid = M.active.tau_tab_id
+	local session
+	if tid then
+		session = state.get_session(tid) or M.active.session
+	else
+		session = state.get_session()
+	end
+	if session then
+		M.active.session = session
+	else
+		session = M.active.session
+	end
 	local info_str = require("tau.session_display").winbar_text(session)
 	local layout_state = M.active.layout_state
 	local config = M.active.config
@@ -283,7 +297,20 @@ function M.refresh()
 		return
 	end
 
-	local session = require("tau.state").get_session()
+	local state = require("tau.state")
+	local tid = M.active.tau_tab_id
+	local session
+	if tid then
+		session = state.get_session(tid) or M.active.session
+	else
+		session = state.get_session()
+	end
+	if not session and M.active.session then
+		session = M.active.session
+	end
+	if session then
+		M.active.session = session
+	end
 	history.refresh(M.active.hist_buf, session, M.active.config)
 	history.scroll_to_bottom(M.active.hist_buf, M.active.layout_state.history)
 	M.refresh_winbar()
