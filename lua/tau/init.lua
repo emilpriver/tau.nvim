@@ -6,6 +6,9 @@ function M.setup(opts)
 	opts = opts or {}
 	config.setup(opts)
 	require("tau.plugin").init({ plugins = opts.plugins })
+	require("tau.mentions").init({
+		mention_plugins = opts.mention_plugins or {},
+	})
 end
 
 function M.show(opts)
@@ -265,22 +268,16 @@ function M.list_logins()
 	vim.notify("Stored providers: " .. table.concat(providers, ", "), vim.log.levels.INFO)
 end
 
+function M.insert_prompt_context(opts)
+	return require("tau.mentions").insert_into_prompt(opts or {})
+end
+
 function M.send_mention()
-	local mention = require("tau.ui.complete").send_mention_for_buffer()
-	if mention then
-		local ui = require("tau.ui")
-		if not ui.active then
-			M.show()
-		end
-		ui.focus_prompt()
-		local lines = vim.api.nvim_buf_get_lines(ui.active.prompt_buf, 0, -1, false)
-		if #lines > 0 and lines[#lines] ~= "" then
-			table.insert(lines, mention)
-		else
-			lines[#lines] = mention
-		end
-		vim.api.nvim_buf_set_lines(ui.active.prompt_buf, 0, -1, false, lines)
-	end
+	return M.insert_prompt_context({})
+end
+
+function M.register_mention_provider(provider)
+	require("tau.mentions").register(provider)
 end
 
 function M.attach_image(path)
@@ -334,6 +331,10 @@ end
 
 function M.register_provider(plugin_module)
 	require("tau.plugin").register_provider(plugin_module)
+end
+
+function M.get_mention_provider()
+	return require("tau.mentions").get_active()
 end
 
 return M

@@ -186,8 +186,6 @@ function M.build_system_prompt(cwd, provider_name)
 		table.insert(parts, ctx.agents)
 	end
 
-
-
 	if ctx.append then
 		table.insert(parts, ctx.append)
 	end
@@ -213,6 +211,8 @@ Available tools:
 - edit_buffer: Edit an open buffer with exact text replacement (via Neovim API)
 - goto_buffer: Switch the user's view to a specific buffer
 - open_file_to_buffer: Open a file path in the main editor window, not Tau panels (optional line jump and split)
+
+The user may include file or directory references in messages as [file: …] or [directory: …] (from @ completion or :TauPromptContext).
 
 Prefer grep/find/ls over bash for file discovery. Use edit for precise changes, write for new files or complete rewrites. When editing buffers, prefer edit_buffer over write to preserve unsaved changes.
 ]]

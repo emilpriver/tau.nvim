@@ -58,6 +58,33 @@ local function check_provider_config()
   end
 end
 
+local function check_mentions()
+  local ok, mentions = pcall(require, "tau.mentions")
+  if not ok then
+    vim.health.warn("tau.mentions could not be loaded")
+    return
+  end
+  mentions.ensure_default()
+  local _, name = mentions.get_active()
+  vim.health.ok(string.format("Mention provider: %s", name or "?"))
+  local names = mentions.list_names()
+  if #names > 1 then
+    vim.health.info("Registered: " .. table.concat(names, ", "))
+  end
+end
+
+local function check_blink()
+  if not pcall(require, "blink.cmp.config") then
+    return
+  end
+  local providers = require("blink.cmp.config").sources.providers
+  if providers.tau_mentions then
+    vim.health.ok("blink.cmp tau_mentions provider is registered")
+  else
+    vim.health.info("blink.cmp without tau_mentions; open Tau once or add the provider manually")
+  end
+end
+
 M.run = function(silent)
   if not vim.health then
     if not silent then
@@ -69,6 +96,8 @@ M.run = function(silent)
   check_nvim_version()
   check_curl()
   check_provider_config()
+  check_mentions()
+  check_blink()
 end
 
 return M
