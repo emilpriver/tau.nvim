@@ -32,6 +32,9 @@ function M.setup_highlights()
 		TauStatuslineWarn = { link = "DiagnosticWarn", default = true },
 		TauStatuslineError = { link = "DiagnosticError", default = true },
 		TauWelcome = { link = "Comment", default = true },
+		TauLogo = { ctermfg = 119, fg = "#9ee65c", default = true },
+		TauLogoDim = { ctermfg = 71, fg = "#4caf6a", default = true },
+		TauLogoEdge = { ctermfg = 65, fg = "#2d6b3e", default = true },
 	}
 
 	for name, def in pairs(highlights) do
@@ -177,6 +180,9 @@ function M.render_message(msg, config)
 			end
 		end
 	elseif msg.role == "system" then
+		if msg._hidden then
+			return {}, {}
+		end
 		local label = config.labels.system_error
 		table.insert(lines, label)
 		table.insert(extmarks, { line = #lines - 1, hl = HL.system })
@@ -193,30 +199,68 @@ function M.render_message(msg, config)
 	return lines, extmarks
 end
 
-function M.render_welcome(config)
+function M.render_welcome_logo()
+	local logo_w = 30
+	local function pad(s)
+		local n = vim.fn.strwidth(s)
+		if n < logo_w then
+			return s .. string.rep(" ", logo_w - n)
+		end
+		return s
+	end
+	local name = "Tau"
+	local name_w = vim.fn.strwidth(name)
+	local name_left = math.floor((logo_w - name_w) / 2)
+	local name_line = string.rep(" ", name_left) .. name .. string.rep(" ", logo_w - name_w - name_left)
 	local lines = {
-		"",
-		"  Welcome to tau",
-		"",
-		"  Type your message and press <CR> to send.",
-		"  <S-CR> for a new line.",
-		"",
-		"  Commands:",
-		"    :TauModel          Select model",
-		"    :TauCycleModel     Cycle models",
-		"    :TauCompact        Compact context",
-		"    :TauAgents         Show loaded agent files",
-		"    :TauLogin <provider>  Authenticate",
-		"",
+		pad("         ╭·───────────·╮  "),
+		pad("        ╱                 ╲ "),
+		pad("       │                   │"),
+		pad("      │                     │"),
+		pad("     │          τ            │"),
+		pad("      │                     │"),
+		pad("       │                   │"),
+		pad("        ╲                 ╱ "),
+		pad("         ╰·─        ─·╯   "),
+		name_line,
+		pad(""),
 	}
-	return lines
+	local extmarks = {
+		{ line = 0, hl = "TauLogo" },
+		{ line = 1, hl = "TauLogoDim" },
+		{ line = 2, hl = "TauLogo" },
+		{ line = 3, hl = "TauLogoDim" },
+		{ line = 4, hl = "TauLogo" },
+		{ line = 5, hl = "TauLogoDim" },
+		{ line = 6, hl = "TauLogo" },
+		{ line = 7, hl = "TauLogoDim" },
+		{ line = 8, hl = "TauLogoEdge" },
+		{ line = 9, hl = "TauLogo" },
+	}
+	return lines, extmarks
 end
 
 function M.render_startup_info(session, config)
 	local lines = {}
-
+	local agents_mod = require("tau.agents")
+	local src = agents_mod.list_context_sources(session and session.cwd)
+	local function add_section(heading, items)
+		if #items == 0 then
+			return
+		end
+		table.insert(lines, "  " .. heading)
+		for _, item in ipairs(items) do
+			local p = item.path and vim.fn.fnamemodify(item.path, ":~") or (item.name or "?")
+			table.insert(lines, "    " .. p)
+		end
+	end
+	add_section("AGENTS.md", src.agents)
+	add_section("SYSTEM.md", src.system)
+	add_section("APPEND_SYSTEM.md", src.append)
+	if #lines == 0 then
+		return lines
+	end
 	table.insert(lines, "")
-
 	return lines
 end
 
@@ -231,19 +275,30 @@ function M.refresh(buf, session, config)
 	local all_extmarks = {}
 
 	if not session or not session.messages or #session.messages == 0 then
-		local welcome = M.render_welcome(config)
-		vim.list_extend(all_lines, welcome)
+		local logo_lines, logo_marks = M.render_welcome_logo()
+		vim.list_extend(all_lines, logo_lines)
+		for _, em in ipairs(logo_marks) do
+			table.insert(all_extmarks, { line = em.line, hl = em.hl })
+		end
+		local startup = M.render_startup_info(session, config)
+		if #startup > 0 then
+			vim.list_extend(all_lines, startup)
+		end
 	else
 		local startup = M.render_startup_info(session, config)
-		vim.list_extend(all_lines, startup)
+		if #startup > 0 then
+			vim.list_extend(all_lines, startup)
+		end
 
 		for _, msg in ipairs(session.messages) do
 			local lines, extmarks = M.render_message(msg, config)
-			for _, em in ipairs(extmarks) do
-				em.line = em.line + #all_lines
-				table.insert(all_extmarks, em)
+			if #lines > 0 then
+				for _, em in ipairs(extmarks) do
+					em.line = em.line + #all_lines
+					table.insert(all_extmarks, em)
+				end
+				vim.list_extend(all_lines, lines)
 			end
-			vim.list_extend(all_lines, lines)
 		end
 	end
 

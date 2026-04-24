@@ -65,6 +65,7 @@ function M.new_session(opts)
 		table.insert(session.messages, {
 			role = "system",
 			content = system_prompt,
+			_hidden = true,
 		})
 	end
 

@@ -172,6 +172,46 @@ function M.load_context(cwd)
 	}
 end
 
+function M.list_context_sources(cwd)
+	cwd = cwd or vim.fn.getcwd()
+	local global = M.load_global()
+	local project = M.load_project(cwd)
+	local agents = {}
+	local system = {}
+	local append = {}
+
+	for _, filename in ipairs(AGENT_FILENAMES) do
+		if global[filename] then
+			table.insert(agents, { name = filename, path = global[filename].path })
+		end
+		if project[filename] then
+			for _, item in ipairs(project[filename]) do
+				table.insert(agents, { name = filename, path = item.path })
+			end
+		end
+	end
+
+	if global["SYSTEM.md"] then
+		table.insert(system, { name = "SYSTEM.md", path = global["SYSTEM.md"].path })
+	end
+	if project["SYSTEM.md"] then
+		for _, item in ipairs(project["SYSTEM.md"]) do
+			table.insert(system, { name = "SYSTEM.md", path = item.path })
+		end
+	end
+
+	if global["APPEND_SYSTEM.md"] then
+		table.insert(append, { name = "APPEND_SYSTEM.md", path = global["APPEND_SYSTEM.md"].path })
+	end
+	if project["APPEND_SYSTEM.md"] then
+		for _, item in ipairs(project["APPEND_SYSTEM.md"]) do
+			table.insert(append, { name = "APPEND_SYSTEM.md", path = item.path })
+		end
+	end
+
+	return { agents = agents, system = system, append = append }
+end
+
 function M.build_system_prompt(cwd, provider_name)
 	local ctx = M.load_context(cwd)
 	local parts = {}
@@ -179,8 +219,6 @@ function M.build_system_prompt(cwd, provider_name)
 	if ctx.system then
 		return ctx.system
 	end
-
-	table.insert(parts, M.default_system_prompt())
 
 	if ctx.agents then
 		table.insert(parts, ctx.agents)
@@ -190,32 +228,11 @@ function M.build_system_prompt(cwd, provider_name)
 		table.insert(parts, ctx.append)
 	end
 
+	if #parts == 0 then
+		return nil
+	end
+
 	return table.concat(parts, "\n\n")
-end
-
-function M.default_system_prompt()
-	return [[
-You are a coding agent operating inside Neovim. You help users by reading files, executing commands, editing code, and writing new files.
-
-Available tools:
-- read: Read file contents (supports offset/limit for large files, images as attachments)
-- write: Write or overwrite a file (creates parent directories automatically)
-- edit: Apply exact text replacements to a file (multiple disjoint edits in one call)
-- bash: Execute shell commands (output truncated to last 2000 lines or 50KB)
-- grep: Search file contents with regex or literal patterns (uses ripgrep, respects .gitignore)
-- find: Search for files by glob pattern (uses fd, respects .gitignore)
-- ls: List directory contents (sorted alphabetically, '/' suffix for directories)
-- tree: List files and folders recursively with tree-like output
-- open_buffers: List all open Neovim buffers (bufnr, name, modified status, filetype)
-- read_buffer: Read contents of an open buffer by bufnr (supports offset/limit)
-- edit_buffer: Edit an open buffer with exact text replacement (via Neovim API)
-- goto_buffer: Switch the user's view to a specific buffer
-- open_file_to_buffer: Open a file path in the main editor window, not Tau panels (optional line jump and split)
-
-The user may include file or directory references in messages as [file: …] or [directory: …] (from @ completion or :TauPromptContext).
-
-Prefer grep/find/ls over bash for file discovery. Use edit for precise changes, write for new files or complete rewrites. When editing buffers, prefer edit_buffer over write to preserve unsaved changes.
-]]
 end
 
 function M.list_loaded_files(cwd)
