@@ -365,6 +365,7 @@ function M.start_turn()
 
 	M.active.is_busy = true
 	M.active.thinking_line_idx = nil
+	M.active.busy_status_line_1 = nil
 	queue.set_busy(true)
 	M.start_busy()
 
@@ -403,6 +404,21 @@ function M.start_turn()
 	local function ensure_streaming_header()
 		if streaming_header_added or not M.active then
 			return
+		end
+		if M.active.spinner_handle then
+			M.active.spinner_handle.stop()
+			M.active.spinner_handle = nil
+		end
+		if M.active.busy_status_line_1 and M.active.hist_buf and vim.api.nvim_buf_is_valid(M.active.hist_buf) then
+			local buf = M.active.hist_buf
+			local n = M.active.busy_status_line_1
+			local nlines = vim.api.nvim_buf_line_count(buf)
+			if n >= 1 and n <= nlines then
+				vim.bo[buf].modifiable = true
+				vim.api.nvim_buf_set_lines(buf, n - 1, n, false, {})
+				vim.bo[buf].modifiable = false
+			end
+			M.active.busy_status_line_1 = nil
 		end
 		streaming_header_added = true
 		local buf = M.active.hist_buf
@@ -481,7 +497,6 @@ function M.start_turn()
 		lines[1] = last_line .. lines[1]
 		vim.api.nvim_buf_set_lines(buf, count - 1, count, false, lines)
 		vim.bo[buf].modifiable = false
-		add_thinking_line()
 		require("tau.ui.history").scroll_to_bottom(buf, M.active.layout_state.history)
 	end
 
@@ -575,12 +590,17 @@ function M.start_busy()
 		local count = vim.api.nvim_buf_line_count(buf)
 		vim.api.nvim_buf_set_lines(buf, count, count, false, { "  🤖 Thinking..." })
 		vim.bo[buf].modifiable = false
+		M.active.busy_status_line_1 = vim.api.nvim_buf_line_count(buf)
 	end)
 
 	M.active.spinner_handle = spinner.start({
 		spinner = config.spinner,
 		on_update = function(frame)
 			if not M.active or not M.active.hist_buf then
+				return
+			end
+			local line_1 = M.active.busy_status_line_1
+			if not line_1 or line_1 < 1 then
 				return
 			end
 			local elapsed = vim.fn.localtime() - start_time
@@ -590,9 +610,15 @@ function M.start_busy()
 			local text = string.format("  🤖 %s Thinking... %s", frame, time_str)
 			local b = M.active.hist_buf
 			pcall(function()
+				if not vim.api.nvim_buf_is_valid(b) then
+					return
+				end
+				local nlines = vim.api.nvim_buf_line_count(b)
+				if line_1 > nlines then
+					return
+				end
 				vim.bo[b].modifiable = true
-				local count = vim.api.nvim_buf_line_count(b)
-				vim.api.nvim_buf_set_lines(b, count - 1, count, false, { text })
+				vim.api.nvim_buf_set_lines(b, line_1 - 1, line_1, false, { text })
 				vim.bo[b].modifiable = false
 			end)
 		end,
@@ -608,6 +634,7 @@ function M.stop_busy()
 		M.active.spinner_handle.stop()
 		M.active.spinner_handle = nil
 	end
+	M.active.busy_status_line_1 = nil
 
 	if M.active.thinking_line_idx then
 		local b = M.active.hist_buf
