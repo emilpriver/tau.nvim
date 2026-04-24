@@ -86,7 +86,9 @@ local function handle_stream_event(data, callbacks, tool_calls_acc)
 	if content then
 		callbacks.on_chunk(content)
 	end
-	local reasoning = get_string(delta.reasoning_content) or get_string(delta.reasoning) or get_string(delta.reasoning_text)
+	local reasoning = get_string(delta.reasoning_content)
+		or get_string(delta.reasoning)
+		or get_string(delta.reasoning_text)
 	if reasoning then
 		callbacks.on_thinking(reasoning)
 	end
@@ -111,7 +113,7 @@ local function handle_stream_event(data, callbacks, tool_calls_acc)
 				end
 				local args_delta = args or ""
 				if args then
-					entry.args = entry.args .. args
+					entry.args = entry.args .. args_delta
 				end
 				if entry.name and entry.id then
 					callbacks.on_tool_use(entry.name, args_delta, entry.id)
@@ -239,55 +241,61 @@ function M.stream(api_key, base_url, model, messages, opts)
 		end
 	end
 
-	local handle = vim.system(curl_cmd, { text = true, stdout = process_chunk, stderr = stderr_handler }, function(result)
-		if result.code ~= 0 then
-			local err_msg = table.concat(stderr_lines, "\n")
-			if result.stdout and result.stdout ~= "" then
-				err_msg = err_msg .. "\n" .. result.stdout
+	local handle = vim.system(
+		curl_cmd,
+		{ text = true, stdout = process_chunk, stderr = stderr_handler },
+		function(result)
+			if result.code ~= 0 then
+				local err_msg = table.concat(stderr_lines, "\n")
+				if result.stdout and result.stdout ~= "" then
+					err_msg = err_msg .. "\n" .. result.stdout
+				end
+				if err_msg == "" then
+					err_msg = "HTTP request failed (code " .. result.code .. ")"
+				end
+				vim.schedule(function()
+					on_error(err_msg)
+				end)
+				if not done_called then
+					done_called = true
+					vim.schedule(on_done)
+				end
+				return
 			end
-			if err_msg == "" then
-				err_msg = "HTTP request failed (code " .. result.code .. ")"
+
+			if event_count == 0 and buffer ~= "" then
+				local ok, parsed = pcall(vim.json.decode, buffer)
+				if ok and parsed then
+					if parsed.error then
+						local err_msg = extract_error(parsed) or buffer
+						vim.schedule(function()
+							on_error(err_msg)
+						end)
+						if not done_called then
+							done_called = true
+							vim.schedule(on_done)
+						end
+						return
+					end
+					local text = parsed.choices
+							and parsed.choices[1]
+							and parsed.choices[1].message
+							and parsed.choices[1].message.content
+						or ""
+					if text ~= "" then
+						vim.schedule(function()
+							on_chunk(text)
+						end)
+					end
+				end
 			end
-			vim.schedule(function()
-				on_error(err_msg)
-			end)
+
 			if not done_called then
 				done_called = true
 				vim.schedule(on_done)
 			end
-			return
 		end
-
-		if event_count == 0 and buffer ~= "" then
-			-- No SSE events parsed -- likely a non-streaming or error response
-			local ok, parsed = pcall(vim.json.decode, buffer)
-			if ok and parsed then
-				if parsed.error then
-					local err_msg = extract_error(parsed) or buffer
-					vim.schedule(function()
-						on_error(err_msg)
-					end)
-					if not done_called then
-						done_called = true
-						vim.schedule(on_done)
-					end
-					return
-				end
-				-- Non-streaming response parsed as JSON -- try to emit it
-				local text = parsed.choices and parsed.choices[1] and parsed.choices[1].message and parsed.choices[1].message.content or ""
-				if text ~= "" then
-					vim.schedule(function()
-						on_chunk(text)
-					end)
-				end
-			end
-		end
-
-		if not done_called then
-			done_called = true
-			vim.schedule(on_done)
-		end
-	end)
+	)
 
 	return handle
 end
