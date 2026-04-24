@@ -3,6 +3,16 @@ local M = {}
 local MAX_OUTPUT_LINES = 2000
 local MAX_OUTPUT_BYTES = 50 * 1024
 
+local function resolve_path(path)
+	if vim.fn.has("win32") == 1 and path:match("^%a:/") then
+		return path
+	end
+	if path:sub(1, 1) == "/" or path:sub(1, 1) == "~" then
+		return vim.fn.expand(path)
+	end
+	return vim.fn.getcwd() .. "/" .. path
+end
+
 function M.open_buffers_tool(input)
 	local buffers = vim.api.nvim_list_bufs()
 	local current_buf = vim.api.nvim_get_current_buf()
@@ -190,6 +200,50 @@ function M.edit_buffer_tool(input)
 		bufnr = bufnr,
 		lines_before = orig_line_count,
 		lines_after = new_line_count,
+	}
+end
+
+function M.open_file_to_buffer_tool(input)
+	local path = input.path
+	local line_nr = input.line
+	local split = input.split
+
+	if not path or path == "" then
+		return { error = "path is required" }
+	end
+
+	local full = resolve_path(path)
+	full = vim.fn.fnamemodify(full, ":p")
+
+	if vim.fn.isdirectory(full) == 1 then
+		return { error = "Path is a directory, not a file: " .. full }
+	end
+
+	if split then
+		if split == "vertical" or split == "v" then
+			vim.cmd("vsplit")
+		elseif split == "horizontal" or split == "h" or split == "s" then
+			vim.cmd("split")
+		end
+	end
+
+	local win = vim.api.nvim_get_current_win()
+	vim.cmd("edit " .. vim.fn.fnameescape(full))
+
+	local bufnr = vim.api.nvim_win_get_buf(win)
+	local name = vim.api.nvim_buf_get_name(bufnr)
+	local line_count = vim.api.nvim_buf_line_count(bufnr)
+
+	if type(line_nr) == "number" and line_nr >= 1 then
+		line_nr = math.min(line_nr, math.max(1, line_count))
+		pcall(vim.api.nvim_win_set_cursor, win, { line_nr, 0 })
+	end
+
+	return {
+		text = "Opened in buffer bufnr=" .. bufnr .. " (" .. line_count .. " lines): " .. name,
+		bufnr = bufnr,
+		path = name,
+		line_count = line_count,
 	}
 end
 

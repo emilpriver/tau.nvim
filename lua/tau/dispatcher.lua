@@ -92,7 +92,9 @@ function M.run_turn(provider_name, messages, opts)
 				role = "assistant",
 				content = result.text or "",
 			}
-			if result.thinking and result.thinking ~= "" then
+			if opts.thinking_level and opts.thinking_level ~= "off" then
+				msg.reasoning_content = (result.thinking and result.thinking ~= "") and result.thinking or ""
+			elseif result.thinking and result.thinking ~= "" then
 				msg.reasoning_content = result.thinking
 			end
 			table.insert(current_messages, msg)
@@ -110,7 +112,9 @@ function M.run_turn(provider_name, messages, opts)
 			content = result.text ~= "" and result.text or "",
 			tool_calls = {},
 		}
-		if result.thinking and result.thinking ~= "" then
+		if opts.thinking_level and opts.thinking_level ~= "off" then
+			assistant_msg.reasoning_content = (result.thinking and result.thinking ~= "") and result.thinking or ""
+		elseif result.thinking and result.thinking ~= "" then
 			assistant_msg.reasoning_content = result.thinking
 		end
 		for _, tool_use in ipairs(result.tool_uses) do
@@ -232,7 +236,9 @@ function M.run_turn_streaming(provider_name, messages, opts)
 					role = "assistant",
 					content = text_response ~= "" and text_response or "",
 				}
-				if thinking_response ~= "" then
+				if opts.thinking_level and opts.thinking_level ~= "off" then
+					assistant_msg.reasoning_content = thinking_response ~= "" and thinking_response or ""
+				elseif thinking_response ~= "" then
 					assistant_msg.reasoning_content = thinking_response
 				end
 				if count_tool_calls(tool_calls) > 0 then
@@ -295,7 +301,7 @@ function M.run_turn_streaming(provider_name, messages, opts)
 				if cancelled then
 					return
 				end
-				on_thinking(text)
+				on_think(text)
 			end,
 			on_tool_use = function(name, args, id)
 				if cancelled then

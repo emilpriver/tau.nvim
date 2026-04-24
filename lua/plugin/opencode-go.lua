@@ -128,7 +128,7 @@ local function parse_response(response)
 	end
 	local message = choice.message
 	local text = get_string(message.content) or ""
-	local thinking = get_string(message.reasoning) or ""
+	local thinking = get_string(message.reasoning) or get_string(message.reasoning_content) or ""
 	local tool_uses = {}
 	if message.tool_calls then
 		for _, tc in ipairs(message.tool_calls) do
