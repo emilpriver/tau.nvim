@@ -16,13 +16,34 @@ function M.open(opts)
 	local state = require("tau.state")
 
 	if M.active and layout.is_open(M.active.layout_state) then
+		if opts.resume then
+			local session = state.get_session()
+			M.active.session = session
+			history.refresh(M.active.hist_buf, session, M.active.config)
+			history.scroll_to_bottom(M.active.hist_buf, M.active.layout_state.history)
+			M.refresh_winbar()
+			layout.focus_prompt(M.active.layout_state)
+			return M.active
+		end
+		require("tau").new_session({ silent = true })
+		local session = state.get_session()
+		M.active.session = session
+		history.refresh(M.active.hist_buf, session, M.active.config)
+		history.scroll_to_bottom(M.active.hist_buf, M.active.layout_state.history)
+		M.refresh_winbar()
 		layout.focus_prompt(M.active.layout_state)
 		return M.active
 	end
 
-	local session = state.get_session()
-	if not session then
-		require("tau").new_session()
+	local session
+	if opts.resume then
+		session = state.get_session()
+		if not session then
+			require("tau").new_session({ silent = true })
+			session = state.get_session()
+		end
+	else
+		require("tau").new_session({ silent = true })
 		session = state.get_session()
 	end
 
@@ -323,6 +344,10 @@ function M.on_submit(text)
 			_queued = true,
 			_queue_type = "steer",
 		})
+		local steer_session = require("tau.state").get_session()
+		if steer_session then
+			require("tau.session").TauSessionAutosave(steer_session)
+		end
 		M.refresh()
 		return
 	end
@@ -341,6 +366,7 @@ function M.on_submit(text)
 
 	local hist = require("tau.history")
 	table.insert(session.messages, hist.user(expanded))
+	require("tau.session").TauSessionAutosave(session)
 
 	M.refresh()
 	M.start_turn()
@@ -538,6 +564,10 @@ function M.finish_turn()
 	M.stop_busy()
 	M.refresh()
 	require("tau.state").update_session_tokens()
+	local s = require("tau.state").get_session()
+	if s then
+		require("tau.session").TauSessionAutosave(s)
+	end
 
 	if queue.size() > 0 then
 		local next_msg = queue.pop()

@@ -30,6 +30,7 @@ function M.create_session(opts)
 		id = opts.id or vim.fn.strftime("%Y%m%d-%H%M%S") .. "-" .. vim.fn.rand(),
 		cwd = opts.cwd or vim.fn.getcwd(),
 		name = opts.name or nil,
+		parent_id = opts.parent_id,
 		messages = opts.messages or {},
 		model = opts.model or require("tau.config").get().provider.model,
 		provider = opts.provider or require("tau.config").get().provider.name,
