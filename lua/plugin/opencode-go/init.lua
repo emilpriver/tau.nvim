@@ -9,14 +9,38 @@ M.models_endpoint = "/models"
 local sse_parser = require("tau.api.sse")
 
 function M.register(registry)
+	registry.register_model("minimax-m2.7", { context_limit = 204800 })
 	registry.register_model("kimi-k2.5", { context_limit = 262144 })
-	registry.register_model("kimi-k2.6", { context_limit = 262144 })
+	registry.register_model("mimo-v2.5-pro", { context_limit = 1048576 })
 	registry.register_model("glm-5", { context_limit = 204800 })
-	registry.register_model("glm-5.1", { context_limit = 204800 })
 	registry.register_model("mimo-v2-omni", { context_limit = 262144 })
+	registry.register_model("mimo-v2.5", { context_limit = 262144 })
+	registry.register_model("qwen3.6-plus", { context_limit = 262144 })
+	registry.register_model("glm-5.1", { context_limit = 204800 })
+	registry.register_model("deepseek-v4-flash", { context_limit = 1000000 })
+	registry.register_model("kimi-k2.6", { context_limit = 262144 })
+	registry.register_model("deepseek-v4-pro", { context_limit = 1000000 })
+	registry.register_model("minimax-m2.5", { context_limit = 204800 })
 	registry.register_model("mimo-v2-pro", { context_limit = 1048576 })
+	registry.register_model("qwen3.5-plus", { context_limit = 262144 })
 
-	registry.register_fallback("opencode", "kimi-k2.5", "kimi-k2.6", "glm-5", "glm-5.1", "mimo-v2-omni", "mimo-v2-pro")
+	registry.register_fallback(
+		"opencode",
+		"minimax-m2.7",
+		"kimi-k2.5",
+		"mimo-v2.5-pro",
+		"glm-5",
+		"mimo-v2-omni",
+		"mimo-v2.5",
+		"qwen3.6-plus",
+		"glm-5.1",
+		"deepseek-v4-flash",
+		"kimi-k2.6",
+		"deepseek-v4-pro",
+		"minimax-m2.5",
+		"mimo-v2-pro",
+		"qwen3.5-plus"
+	)
 
 	registry.register_auth_help("opencode", "Opencode", "https://opencode.ai/settings", "Enter your Opencode API key")
 end
