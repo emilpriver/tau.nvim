@@ -117,6 +117,26 @@ local function content_to_string(content)
 	return ""
 end
 
+local function delta_field_to_string(v)
+	local s = get_string(v)
+	if s then
+		return s
+	end
+	return content_to_string(v)
+end
+
+local function first_reasoning_string(delta)
+	local r = delta_field_to_string(delta.reasoning_content)
+	if r ~= "" then
+		return r
+	end
+	r = delta_field_to_string(delta.reasoning)
+	if r ~= "" then
+		return r
+	end
+	return delta_field_to_string(delta.reasoning_text)
+end
+
 local function extract_error(parsed)
 	if not parsed or not parsed.error then
 		return nil
@@ -140,18 +160,20 @@ local function handle_stream_event(data, callbacks, tool_calls_acc)
 	if not choices or #choices == 0 then
 		return
 	end
-	local delta = choices[1].delta
+	local ch = choices[1]
+	if ch.finish_reason == "length" and callbacks.on_truncation then
+		callbacks.on_truncation()
+	end
+	local delta = ch.delta
 	if not delta then
 		return
 	end
-	local content = get_string(delta.content)
-	if content then
-		callbacks.on_chunk(content)
+	local text_chunk = delta_field_to_string(delta.content)
+	if text_chunk ~= "" then
+		callbacks.on_chunk(text_chunk)
 	end
-	local reasoning = get_string(delta.reasoning_content)
-		or get_string(delta.reasoning)
-		or get_string(delta.reasoning_text)
-	if reasoning then
+	local reasoning = first_reasoning_string(delta)
+	if reasoning ~= "" then
 		callbacks.on_thinking(reasoning)
 	end
 	if type(delta.tool_calls) == "table" and #delta.tool_calls > 0 then
@@ -192,7 +214,10 @@ local function parse_response(response)
 	end
 	local message = choice.message
 	local text = get_string(message.content) or content_to_string(message.content) or ""
-	local thinking = get_string(message.reasoning) or get_string(message.reasoning_content) or ""
+	local thinking = delta_field_to_string(message.reasoning)
+	if thinking == "" then
+		thinking = delta_field_to_string(message.reasoning_content)
+	end
 	local tool_uses = {}
 	if message.tool_calls then
 		for _, tc in ipairs(message.tool_calls) do
@@ -244,6 +269,7 @@ function M.stream(api_key, base_url, model, messages, opts)
 	local tool_calls_acc = {}
 
 	local done_called = false
+	local length_notified = false
 
 	local function process_chunk(err, raw)
 		if err then
@@ -282,6 +308,18 @@ function M.stream(api_key, base_url, model, messages, opts)
 						on_tool_use = function(name, args, id)
 							vim.schedule(function()
 								on_tool_use(name, args, id)
+							end)
+						end,
+						on_truncation = function()
+							if length_notified then
+								return
+							end
+							length_notified = true
+							vim.schedule(function()
+								vim.notify(
+									"Model output was cut off at the max token limit; the reply may be incomplete.",
+									vim.log.levels.WARN
+								)
 							end)
 						end,
 					}, tool_calls_acc)

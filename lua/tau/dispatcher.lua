@@ -231,30 +231,28 @@ function M.run_turn_streaming(provider_name, messages, opts)
 			end
 			done = true
 
-			if text_response ~= "" or thinking_response ~= "" or count_tool_calls(tool_calls) > 0 then
-				local assistant_msg = {
-					role = "assistant",
-					content = text_response ~= "" and text_response or "",
-				}
-				if opts.thinking_level and opts.thinking_level ~= "off" then
-					assistant_msg.reasoning_content = thinking_response ~= "" and thinking_response or ""
-				elseif thinking_response ~= "" then
-					assistant_msg.reasoning_content = thinking_response
-				end
-				if count_tool_calls(tool_calls) > 0 then
-					assistant_msg.tool_calls = {}
-					for id, tc in pairs(tool_calls) do
-						table.insert(assistant_msg.tool_calls, {
-							id = id,
-							["function"] = {
-								name = tc.name,
-								arguments = tc.input_str,
-							},
-						})
-					end
-				end
-				table.insert(messages, assistant_msg)
+			local assistant_msg = {
+				role = "assistant",
+				content = text_response ~= "" and text_response or "",
+			}
+			if opts.thinking_level and opts.thinking_level ~= "off" then
+				assistant_msg.reasoning_content = thinking_response ~= "" and thinking_response or ""
+			elseif thinking_response ~= "" then
+				assistant_msg.reasoning_content = thinking_response
 			end
+			if count_tool_calls(tool_calls) > 0 then
+				assistant_msg.tool_calls = {}
+				for id, tc in pairs(tool_calls) do
+					table.insert(assistant_msg.tool_calls, {
+						id = id,
+						["function"] = {
+							name = tc.name,
+							arguments = tc.input_str,
+						},
+					})
+				end
+			end
+			table.insert(messages, assistant_msg)
 
 			for id, tc in pairs(tool_calls) do
 				local parsed_input = {}
