@@ -20,6 +20,7 @@ end
 local function resolve_model_list()
 	local config = get_config()
 	if not config.models then
+		table.sort(available_models)
 		return available_models
 	end
 
@@ -63,6 +64,8 @@ local function resolve_model_list()
 			vim.list_extend(resolved, matches)
 		end
 	end
+
+	table.sort(resolved)
 
 	return resolved
 end
