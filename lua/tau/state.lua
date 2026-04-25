@@ -14,13 +14,37 @@ function M.get_session(tab_id)
 	return M.sessions[tab_id]
 end
 
+function M.get_context_session()
+	local ui_mod = rawget(package.loaded, "tau.ui")
+	if ui_mod and ui_mod.active and ui_mod.active.tau_tab_id then
+		local s = M.get_session(ui_mod.active.tau_tab_id)
+		if s then
+			return s
+		end
+	end
+	return M.get_session()
+end
+
 function M.set_session(tab_id, session)
 	tab_id = tab_id or vim.api.nvim_get_current_tabpage()
+	local prev = M.sessions[tab_id]
+	if prev ~= session then
+		local ui_mod = rawget(package.loaded, "tau.ui")
+		if ui_mod and ui_mod.prepare_session_switch then
+			ui_mod.prepare_session_switch()
+		end
+	end
 	M.sessions[tab_id] = session
 end
 
 function M.clear_session(tab_id)
 	tab_id = tab_id or vim.api.nvim_get_current_tabpage()
+	if M.sessions[tab_id] ~= nil then
+		local ui_mod = rawget(package.loaded, "tau.ui")
+		if ui_mod and ui_mod.prepare_session_switch then
+			ui_mod.prepare_session_switch()
+		end
+	end
 	M.sessions[tab_id] = nil
 end
 
@@ -34,6 +58,7 @@ function M.create_session(opts)
 		name = opts.name or nil,
 		parent_id = opts.parent_id,
 		messages = opts.messages or {},
+		queue = opts.queue or {},
 		model = opts.model or require("tau.config").get().provider.model,
 		provider = opts.provider or require("tau.config").get().provider.name,
 		tokens_used = 0,

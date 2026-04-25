@@ -393,4 +393,61 @@ function M.get_mention_provider()
 	return require("tau.mentions").get_active()
 end
 
+function M.queue_push(text, type_)
+	require("tau.ui.queue").push(text, type_ or "steer")
+end
+
+function M.queue_pop()
+	return require("tau.ui.queue").pop()
+end
+
+function M.queue_clear()
+	require("tau.ui.queue").clear()
+end
+
+function M.queue_size()
+	return require("tau.ui.queue").size()
+end
+
+function M.queue_get_all()
+	return require("tau.ui.queue").get_all()
+end
+
+function M.queue_get_info()
+	return require("tau.ui.queue").get_info()
+end
+
+function M.queue_remove(index)
+	return require("tau.ui.queue").remove_at(index)
+end
+
+function M.queue_move(index, direction)
+	local q = require("tau.ui.queue")
+	if direction == "up" or direction == -1 then
+		q.move_up(index)
+	elseif direction == "down" or direction == 1 then
+		q.move_down(index)
+	end
+end
+
+function M.queue_set_busy(busy)
+	require("tau.ui.queue").set_busy(busy)
+end
+
+function M.open_queue_modal()
+	require("tau.ui.queue_modal").open()
+end
+
+function M.show_queue()
+	M.open_queue_modal()
+end
+
+function M.clear_queue()
+	M.queue_clear()
+end
+
+function M.remove_queued(idx)
+	M.queue_remove(idx)
+end
+
 return M

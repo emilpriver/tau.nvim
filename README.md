@@ -76,29 +76,162 @@ Full command list lives in [`plugin/tau.lua`](plugin/tau.lua).
 
 ## Configuration
 
-`setup({ ... })` accepts options merged into [`lua/tau/config.lua`](lua/tau/config.lua). Notable areas:
+Call `require("tau").setup({ ... })` once. Options are **deep-merged** into the defaults in [`lua/tau/config.lua`](lua/tau/config.lua).
 
-| Area | Purpose |
+### Setup-only
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `plugins` | `string[]` | Module names for `tau.plugin.init`. |
+
+`mention_plugins` is passed to `tau.mentions.init`.
+
+### `provider`
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `name` | string | `"opencode"` | Provider id. |
+| `model` | string?, nil | `nil` | Default model id. |
+| `base_url` | string?, nil | `nil` | Optional API base URL. |
+
+### `models`
+
+| Type | Default | Description |
+|------|---------|-------------|
+| `table?`, `nil` | `nil` | Model list filters: string or `{ match = "..." }` with optional `exact` or `latest`. |
+
+### `mention_provider` / `mention_plugins`
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `mention_provider` | string | `"files"` | Active mention provider name. |
+| `mention_plugins` | table | `{}` | Extra mention providers. |
+
+### `layout`
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `default` | string | `"side"` | `"side"` or `"float"`. |
+| `layout.side.position` | string | `"right"` | `"left"` or `"right"`. |
+| `layout.side.width` | number | `80` | Side layout width (columns). |
+| `layout.side.panels.history.winbar` | bool | `true` | History winbar. |
+| `layout.side.panels.prompt.winbar` | bool | `true` | Prompt winbar. |
+| `layout.side.panels.attachments.winbar` | bool | `true` | Attachments winbar. |
+| `layout.float.width` | number | `0.6` | Float width fraction of `vim.o.columns`. |
+| `layout.float.height` | number | `0.8` | Float height fraction of `vim.o.lines`. |
+| `layout.float.border` | string | `"rounded"` | Float window border. |
+
+### `panels`
+
+| Key | Type | Default |
+|-----|------|---------|
+| `panels.history.title` | string | `"π"` |
+| `panels.prompt.title` | string | `"Prompt"` |
+| `panels.attachments.title` | string | `"attachments"` |
+
+### `labels`
+
+History prefixes:
+
+| Key | Default |
+|-----|---------|
+| `user_message` | `` |
+| `agent_response` | `󰚩` |
+| `system_error` | `󱚟` |
+| `tool` | `󰻂` |
+| `tool_success` | `` |
+| `tool_failure` | `` |
+| `steer_message` | `󰾘` |
+| `queued_message` | `󰗼` |
+| `follow_up_message` | `󱇼` |
+| `thinking` | `󰟶` |
+| `attachment` | `` |
+| `attachments` | `` |
+| `error` | `󰘨 󱚟 󱔁 ` |
+
+### General UI
+
+| Key | Type | Default |
+|-----|------|---------|
+| `spinner` | string | `"robot"` |
+| `show_thinking` | bool | `false` |
+| `expand_startup_details` | bool | `true` |
+
+### `dialog`
+
+| Key | Type | Default |
+|-----|------|---------|
+| `border` | string | `"rounded"` |
+| `max_width` | number | `0.8` |
+| `max_height` | number | `0.8` |
+| `indicator` | string | `"▸"` |
+| `keys.confirm` / `cancel` / `next` / `prev` | any | `nil` |
+
+### `zen`
+
+| Key | Type | Default |
+|-----|------|---------|
+| `width` | any | `nil` |
+| `keys.toggle` / `exit` | any | `nil` |
+
+### `statusline`
+
+| Key |
+|-----|
+| `layout.left`, `layout.right` |
+| `components` (tokens, cache, cost, compaction, context, attention, model, thinking) |
+
+### `verbs`
+
+| Key | Type | Default |
+|-----|------|---------|
+| `use_defaults` | bool | `true` |
+| `pairs` | table | `{}` |
+
+### `on_widget`
+
+| Type | Default |
 |------|---------|
-| `provider` | `name`, `model`, optional `base_url` |
-| `layout` | `default` (`side` / `float`), widths, borders, panel `winbar` toggles |
-| `labels`, `spinner`, `show_thinking`, `dialog`, `zen` | UI copy and behavior |
-| `mention_provider`, `mention_plugins` | Mention system |
-| `session` | `auto_llm_title` (default **off**), `title_max_chars_excerpt`, `title_max_length`, optional `title_model` |
-| `plugins` | List of Lua module names passed to `tau.plugin.init` (each should register a provider in `setup`) |
+| `function?` | `nil` |
 
-**Available provider plugins:**
+### `queue`
 
-- `plugin.opencode-go` — Opencode provider (add `plugins = { "plugin.opencode-go" }` to enable)
+| Key | Type | Default |
+|-----|------|---------|
+| `enabled` | bool | `true` |
+| `max_size` | number | `50` |
+| `processing` | string | `"sequential"` |
+| `show_indicator` | bool | `true` |
+| `persist` | bool | `true` |
 
-Example — enable automatic LLM session titles and a dedicated title model:
+### `session`
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `auto_llm_title` | bool | `false` | LLM-generated session name after first reply. |
+| `title_max_chars_excerpt` | number | `4000` | Excerpt size for title prompt. |
+| `title_max_length` | number | `56` | Max title length. |
+| `title_model` | string?, nil | `nil` | Model for title generation. |
+
+### Example
 
 ```lua
 require("tau").setup({
-  plugins = { "your.provider.module" },
+  plugins = { "plugin.opencode-go" },
+  provider = {
+    name = "opencode",
+    model = "gpt-4.1",
+  },
+  layout = {
+    default = "side",
+    side = { position = "right", width = 84 },
+    float = { width = 0.65, height = 0.85, border = "double" },
+  },
+  show_thinking = true,
+  mention_provider = "files",
   session = {
     auto_llm_title = true,
-    title_model = "your-small-model-id", -- optional; defaults to main provider model
+    title_model = "your-small-model-id",
   },
 })
 ```

@@ -97,6 +97,34 @@ function M.render_message(msg, config)
 	local extmarks = {}
 	local ts = M.format_timestamp(msg.timestamp)
 
+	if msg.role == "user" and msg._queued then
+		local label = config.labels.steer_message or "󰾘"
+		local header = string.format("%s %s (queued)", label, ts)
+		table.insert(lines, header)
+		table.insert(extmarks, { line = #lines - 1, hl = HL.system })
+
+		local content = msg.content
+		if type(content) == "string" then
+			for _, line in ipairs(vim.split(content, "\n")) do
+				table.insert(lines, "  " .. line)
+			end
+		elseif type(content) == "table" then
+			for _, part in ipairs(content) do
+				if part.text then
+					for _, line in ipairs(vim.split(part.text, "\n")) do
+						table.insert(lines, "  " .. line)
+					end
+				end
+			end
+		end
+
+		if msg.attachments and #msg.attachments > 0 then
+			table.insert(lines, string.format("  [+%d attachment(s)]", #msg.attachments))
+		end
+		table.insert(lines, "")
+		return lines, extmarks
+	end
+
 	if msg.role == "user" then
 		local label = config.labels.user_message
 		local header = string.format("%s %s", label, ts)
@@ -292,6 +320,24 @@ function M.refresh(buf, session, config)
 
 		for _, msg in ipairs(session.messages) do
 			local lines, extmarks = M.render_message(msg, config)
+			if #lines > 0 then
+				for _, em in ipairs(extmarks) do
+					em.line = em.line + #all_lines
+					table.insert(all_extmarks, em)
+				end
+				vim.list_extend(all_lines, lines)
+			end
+		end
+
+		local pending = session.queue or {}
+		for _, item in ipairs(pending) do
+			local lines, extmarks = M.render_message({
+				role = "user",
+				content = item.text,
+				_queued = true,
+				_queue_type = item.type,
+				timestamp = item.timestamp,
+			}, config)
 			if #lines > 0 then
 				for _, em in ipairs(extmarks) do
 					em.line = em.line + #all_lines
