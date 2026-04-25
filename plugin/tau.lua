@@ -169,3 +169,20 @@ end, { nargs = 0, desc = "Alias for :TauPromptContext" })
 cmd("TauAgents", function()
 	require("tau").show_agents()
 end, { nargs = 0, desc = "Show loaded agent context files" })
+
+cmd("TauQueue", function()
+	require("tau").show_queue()
+end, { nargs = 0, desc = "Show queued messages in a floating modal" })
+
+cmd("TauQueueClear", function()
+	require("tau").clear_queue()
+end, { nargs = 0, desc = "Clear all queued messages" })
+
+cmd("TauQueueRemove", function(opts)
+	local idx = tonumber(opts.args)
+	if not idx then
+		vim.notify("TauQueueRemove: need index number", vim.log.levels.WARN)
+		return
+	end
+	require("tau").remove_queued(idx)
+end, { nargs = 1, desc = "Remove queued message by index" })

@@ -11,6 +11,7 @@ function M.TauSessionAutosave(session)
 	if not session then
 		return false, "no session"
 	end
+	require("tau.ui.queue").sync_to_session(session)
 	local ok, err = store().save_session(session)
 	if not ok then
 		vim.notify(tostring(err or "session save failed"), vim.log.levels.WARN)
@@ -240,6 +241,7 @@ function M.TauSessionClone()
 		provider = session.provider or tauConfig.provider.name,
 		model = session.model or tauConfig.provider.model,
 		messages = vim.deepcopy(session.messages or {}),
+		queue = vim.deepcopy(session.queue or {}),
 		parent_id = session.parent_id,
 	})
 	new_session.name = session.name and (session.name .. " (copy)") or nil

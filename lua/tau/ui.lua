@@ -18,7 +18,7 @@ function M.open(opts)
 	if M.active and layout.is_open(M.active.layout_state) then
 		if opts.resume then
 			M.active.tau_tab_id = vim.api.nvim_get_current_tabpage()
-			local session = state.get_session()
+			local session = state.get_session(M.active.tau_tab_id)
 			M.active.session = session
 			history.refresh(M.active.hist_buf, session, M.active.config)
 			history.scroll_to_bottom(M.active.hist_buf, M.active.layout_state.history)
@@ -28,7 +28,7 @@ function M.open(opts)
 		end
 		require("tau").new_session({ silent = true })
 		M.active.tau_tab_id = vim.api.nvim_get_current_tabpage()
-		local session = state.get_session()
+		local session = state.get_session(M.active.tau_tab_id)
 		M.active.session = session
 		history.refresh(M.active.hist_buf, session, M.active.config)
 		history.scroll_to_bottom(M.active.hist_buf, M.active.layout_state.history)
@@ -217,9 +217,12 @@ function M.close()
 		return
 	end
 
-	if M.active.is_busy then
-		require("tau.dispatcher").stop()
-		queue.set_busy(false)
+	M.prepare_session_switch()
+
+	-- Persist queue to session before closing
+	local session = require("tau.state").get_context_session()
+	if session then
+		queue.sync_to_session(session)
 	end
 
 	if M.active.augroup then
@@ -346,21 +349,25 @@ function M.on_submit(text)
 
 	if M.active.is_busy then
 		queue.push(text, "steer")
+		-- Append to history buffer with pending styling
 		M.append_message({
 			role = "user",
 			content = text,
 			_queued = true,
 			_queue_type = "steer",
 		})
-		local steer_session = require("tau.state").get_session()
+		-- Persist queue to session for survival across UI close/reopen
+		local steer_session = require("tau.state").get_context_session()
 		if steer_session then
+			queue.sync_to_session(steer_session)
 			require("tau.session").TauSessionAutosave(steer_session)
 		end
-		M.refresh()
+		-- Update winbar to show queue count
+		M.refresh_winbar()
 		return
 	end
 
-	local session = require("tau.state").get_session()
+	local session = require("tau.state").get_context_session()
 	if not session then
 		vim.notify("No active session", vim.log.levels.ERROR)
 		return
@@ -385,7 +392,7 @@ function M.start_turn()
 		return
 	end
 
-	local session = require("tau.state").get_session()
+	local session = require("tau.state").get_context_session()
 	if not session then
 		return
 	end
@@ -574,7 +581,18 @@ function M.stop_turn()
 		return
 	end
 	require("tau.dispatcher").stop()
+	-- Note: finish_turn will flush queue to messages and process next queued item
 	M.finish_turn()
+end
+
+function M.prepare_session_switch()
+	require("tau.dispatcher").stop()
+	if not M.active then
+		return
+	end
+	M.active.is_busy = false
+	queue.set_busy(false)
+	M.stop_busy()
 end
 
 function M.finish_turn()
@@ -585,22 +603,28 @@ function M.finish_turn()
 	M.active.is_busy = false
 	queue.set_busy(false)
 	M.stop_busy()
-	M.refresh()
-	require("tau.state").update_session_tokens()
-	local s = require("tau.state").get_session()
-	if s then
-		require("tau.session").TauSessionAutosave(s)
-		require("tau.session_title").maybe_apply(s)
+
+	local session = require("tau.state").get_context_session()
+	if session then
+		require("tau.state").update_session_tokens()
+		require("tau.session").TauSessionAutosave(session)
+		require("tau.session_title").maybe_apply(session)
 	end
 
 	if queue.size() > 0 then
 		local next_msg = queue.pop()
-		if next_msg then
+		if next_msg and next_msg.text then
+			if session then
+				require("tau.session").TauSessionAutosave(session)
+			end
 			vim.defer_fn(function()
 				M.on_submit(next_msg.text)
 			end, 100)
+			return
 		end
 	end
+
+	M.refresh()
 end
 
 function M.start_busy()

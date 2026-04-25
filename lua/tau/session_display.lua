@@ -32,7 +32,12 @@ function M.winbar_text(session)
 			end
 		end
 	end
-	return string.format(" %s · %s | %s ", title, provider_name, model or "default")
+	local queue_info = ""
+	local q = session and (session.queue or session._queue)
+	if q and #q > 0 then
+		queue_info = string.format(" | %d queued", #q)
+	end
+	return string.format(" %s · %s | %s%s ", title, provider_name, model or "default", queue_info)
 end
 
 return M

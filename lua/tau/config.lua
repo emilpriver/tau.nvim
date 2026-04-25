@@ -44,6 +44,7 @@ local defaults = {
 		tool_success = "",
 		tool_failure = "",
 		steer_message = "󰾘",
+		queued_message = "󰗼",
 		follow_up_message = "󱇼",
 		thinking = "󰟶",
 		attachment = "",
@@ -100,6 +101,14 @@ local defaults = {
 	},
 
 	on_widget = nil,
+
+	queue = {
+		enabled = true,
+		max_size = 50,
+		processing = "sequential",
+		show_indicator = true,
+		persist = true,
+	},
 
 	session = {
 		auto_llm_title = false,
