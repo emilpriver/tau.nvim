@@ -219,7 +219,6 @@ function M.close()
 
 	M.prepare_session_switch()
 
-	-- Persist queue to session before closing
 	local session = require("tau.state").get_context_session()
 	if session then
 		queue.sync_to_session(session)
@@ -349,20 +348,17 @@ function M.on_submit(text)
 
 	if M.active.is_busy then
 		queue.push(text, "steer")
-		-- Append to history buffer with pending styling
 		M.append_message({
 			role = "user",
 			content = text,
 			_queued = true,
 			_queue_type = "steer",
 		})
-		-- Persist queue to session for survival across UI close/reopen
 		local steer_session = require("tau.state").get_context_session()
 		if steer_session then
 			queue.sync_to_session(steer_session)
 			require("tau.session").TauSessionAutosave(steer_session)
 		end
-		-- Update winbar to show queue count
 		M.refresh_winbar()
 		return
 	end
@@ -581,7 +577,6 @@ function M.stop_turn()
 		return
 	end
 	require("tau.dispatcher").stop()
-	-- Note: finish_turn will flush queue to messages and process next queued item
 	M.finish_turn()
 end
 

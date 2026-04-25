@@ -393,7 +393,6 @@ function M.get_mention_provider()
 	return require("tau.mentions").get_active()
 end
 
--- Queue management functions
 function M.queue_push(text, type_)
 	require("tau.ui.queue").push(text, type_ or "steer")
 end

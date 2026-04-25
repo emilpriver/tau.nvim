@@ -97,7 +97,6 @@ function M.render_message(msg, config)
 	local extmarks = {}
 	local ts = M.format_timestamp(msg.timestamp)
 
-	-- Handle queued/pending user messages
 	if msg.role == "user" and msg._queued then
 		local label = config.labels.steer_message or "󰾘"
 		local header = string.format("%s %s (queued)", label, ts)

@@ -76,62 +76,62 @@ Full command list lives in [`plugin/tau.lua`](plugin/tau.lua).
 
 ## Configuration
 
-Call `require("tau").setup({ ... })` once. Options are **deep-merged** into the defaults in [`lua/tau/config.lua`](lua/tau/config.lua). You can inspect the result with `require("tau.config").get()`.
+Call `require("tau").setup({ ... })` once. Options are **deep-merged** into the defaults in [`lua/tau/config.lua`](lua/tau/config.lua).
 
 ### Setup-only
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `plugins` | `string[]` | Lua module names passed to `tau.plugin.init`. Each module should register a provider (or perform setup side effects). Example: `{ "plugin.opencode-go" }` for the bundled Opencode provider. |
+| `plugins` | `string[]` | Module names for `tau.plugin.init`. |
 
-`mention_plugins` is merged into config and passed to `tau.mentions.init` (same table you set under `setup({ mention_plugins = ... })`).
+`mention_plugins` is passed to `tau.mentions.init`.
 
 ### `provider`
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `name` | string | `"opencode"` | Active provider id (must match a registered provider). |
-| `model` | string?, nil | `nil` | Default model id; may be set by provider or `:TauModel`. |
-| `base_url` | string?, nil | `nil` | Optional API base URL when the provider supports it. |
+| `name` | string | `"opencode"` | Provider id. |
+| `model` | string?, nil | `nil` | Default model id. |
+| `base_url` | string?, nil | `nil` | Optional API base URL. |
 
 ### `models`
 
 | Type | Default | Description |
 |------|---------|-------------|
-| `table?`, `nil` | `nil` | If set, a list of **filters** for `:TauModel` / internal model resolution. Each entry is either a **string** (substring match, case-insensitive) or a table: `{ match = "..." }`, optionally `exact = true` (require exact id) or `latest = true` (pick latest among matches). If `nil`, all models returned by the provider are used. |
+| `table?`, `nil` | `nil` | Model list filters: string or `{ match = "..." }` with optional `exact` or `latest`. |
 
 ### `mention_provider` / `mention_plugins`
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `mention_provider` | string | `"files"` | Name of the active mention provider module under `tau.mentions`. |
-| `mention_plugins` | table | `{}` | Extra mention provider modules or options (see `tau.mentions`). |
+| `mention_provider` | string | `"files"` | Active mention provider name. |
+| `mention_plugins` | table | `{}` | Extra mention providers. |
 
 ### `layout`
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `default` | string | `"side"` | Initial layout: `"side"` or `"float"`. Overridden by `:Tau layout=float` etc. |
-| `layout.side.position` | string | `"right"` | `"left"` or `"right"` for the chat split. |
-| `layout.side.width` | number | `80` | Width of the side layout (columns). |
-| `layout.side.panels.history.winbar` | bool | `true` | Show winbar on the history window. |
-| `layout.side.panels.prompt.winbar` | bool | `true` | Show winbar on the prompt window. |
-| `layout.side.panels.attachments.winbar` | bool | `true` | Winbar toggle for attachments panel (when used). |
-| `layout.float.width` | number | `0.6` | Float width as a fraction of `vim.o.columns`. |
-| `layout.float.height` | number | `0.8` | Float height as a fraction of `vim.o.lines`. |
-| `layout.float.border` | string | `"rounded"` | `:help nvim_open_win` border style for float layout. |
+| `default` | string | `"side"` | `"side"` or `"float"`. |
+| `layout.side.position` | string | `"right"` | `"left"` or `"right"`. |
+| `layout.side.width` | number | `80` | Side layout width (columns). |
+| `layout.side.panels.history.winbar` | bool | `true` | History winbar. |
+| `layout.side.panels.prompt.winbar` | bool | `true` | Prompt winbar. |
+| `layout.side.panels.attachments.winbar` | bool | `true` | Attachments winbar. |
+| `layout.float.width` | number | `0.6` | Float width fraction of `vim.o.columns`. |
+| `layout.float.height` | number | `0.8` | Float height fraction of `vim.o.lines`. |
+| `layout.float.border` | string | `"rounded"` | Float window border. |
 
 ### `panels`
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `panels.history.title` | string | `"π"` | Label metadata (reserved for UI that reads `config.panels`). |
-| `panels.prompt.title` | string | `"Prompt"` | Same. |
-| `panels.attachments.title` | string | `"attachments"` | Same. |
+| Key | Type | Default |
+|-----|------|---------|
+| `panels.history.title` | string | `"π"` |
+| `panels.prompt.title` | string | `"Prompt"` |
+| `panels.attachments.title` | string | `"attachments"` |
 
 ### `labels`
 
-Icons / prefixes for history rendering (Nerd Font glyphs by default):
+History prefixes:
 
 | Key | Default |
 |-----|---------|
@@ -151,66 +151,67 @@ Icons / prefixes for history rendering (Nerd Font glyphs by default):
 
 ### General UI
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `spinner` | string | `"robot"` | Spinner preset name passed to `tau.ui.spinner` while waiting. |
-| `show_thinking` | bool | `false` | When true, stream reasoning/thinking blocks in the history (if the provider sends them). Toggled with `:TauToggleThinking`. |
-| `expand_startup_details` | bool | `true` | Present in defaults; not read by core yet. |
+| Key | Type | Default |
+|-----|------|---------|
+| `spinner` | string | `"robot"` |
+| `show_thinking` | bool | `false` |
+| `expand_startup_details` | bool | `true` |
 
 ### `dialog`
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `border` | string | `"rounded"` | Used for some floating editors (e.g. queue message edit) when set. |
-| `max_width` | number | `0.8` | Reserved. |
-| `max_height` | number | `0.8` | Reserved. |
-| `indicator` | string | `"▸"` | Reserved. |
-| `dialog.keys.confirm` / `cancel` / `next` / `prev` | any | `nil` | Reserved keybinding hooks. |
+| Key | Type | Default |
+|-----|------|---------|
+| `border` | string | `"rounded"` |
+| `max_width` | number | `0.8` |
+| `max_height` | number | `0.8` |
+| `indicator` | string | `"▸"` |
+| `keys.confirm` / `cancel` / `next` / `prev` | any | `nil` |
 
 ### `zen`
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `width` | any | `nil` | Reserved. |
-| `zen.keys.toggle` / `exit` | any | `nil` | Reserved. |
-
-Zen mode currently uses a hardcoded `<Esc>` buffer mapping to exit.
+| Key | Type | Default |
+|-----|------|---------|
+| `width` | any | `nil` |
+| `keys.toggle` / `exit` | any | `nil` |
 
 ### `statusline`
 
-Nested `layout` (left/right segment names) and `components` (icons, token warn/error thresholds, etc.) are **defined in defaults** for a richer statusline; the current prompt statusline builder uses a simpler hardcoded format and does not read this tree yet.
+| Key |
+|-----|
+| `layout.left`, `layout.right` |
+| `components` (tokens, cache, cost, compaction, context, attention, model, thinking) |
 
 ### `verbs`
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `use_defaults` | bool | `true` | Reserved. |
-| `pairs` | table | `{}` | Reserved. |
+| Key | Type | Default |
+|-----|------|---------|
+| `use_defaults` | bool | `true` |
+| `pairs` | table | `{}` |
 
 ### `on_widget`
 
-| Type | Default | Description |
-|------|---------|-------------|
-| `function?`, `nil` | `nil` | Reserved callback hook. |
+| Type | Default |
+|------|---------|
+| `function?` | `nil` |
 
 ### `queue`
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | bool | `true` | Reserved; queue behavior is always available when the UI submits while busy. |
-| `max_size` | number | `50` | Reserved cap (not enforced in core yet). |
-| `processing` | string | `"sequential"` | Matches current behavior (one queued turn after another). |
-| `show_indicator` | bool | `true` | Reserved. |
-| `persist` | bool | `true` | Queue is stored on `session.queue` and in session JSONL; not gated off this flag yet. |
+| Key | Type | Default |
+|-----|------|---------|
+| `enabled` | bool | `true` |
+| `max_size` | number | `50` |
+| `processing` | string | `"sequential"` |
+| `show_indicator` | bool | `true` |
+| `persist` | bool | `true` |
 
 ### `session`
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `auto_llm_title` | bool | `false` | After the first assistant reply, call the LLM once to set a short tab title (if name still empty). |
-| `title_max_chars_excerpt` | number | `4000` | Max chars of transcript sent into the title prompt. |
-| `title_max_length` | number | `56` | Max length of generated title string. |
-| `title_model` | string?, nil | `nil` | Optional model id for title generation; defaults to the session/provider model. |
+| `auto_llm_title` | bool | `false` | LLM-generated session name after first reply. |
+| `title_max_chars_excerpt` | number | `4000` | Excerpt size for title prompt. |
+| `title_max_length` | number | `56` | Max title length. |
+| `title_model` | string?, nil | `nil` | Model for title generation. |
 
 ### Example
 
