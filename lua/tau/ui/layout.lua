@@ -94,14 +94,13 @@ function M.is_open(layout)
   if not layout then
     return false
   end
-  local valid = false
-  if layout.history and vim.api.nvim_win_is_valid(layout.history) then
-    valid = true
+  if not layout.history or not vim.api.nvim_win_is_valid(layout.history) then
+    return false
   end
-  if layout.prompt and vim.api.nvim_win_is_valid(layout.prompt) then
-    valid = true
+  if not layout.prompt or not vim.api.nvim_win_is_valid(layout.prompt) then
+    return false
   end
-  return valid
+  return true
 end
 
 function M.focus_history(layout)
