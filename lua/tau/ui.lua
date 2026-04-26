@@ -21,7 +21,6 @@ function M.open(opts)
 		if M._opening then
 			error("tau: chat UI did not finish opening in time")
 		end
-		return M.open(opts)
 	end
 	if M.active and not layout.is_open(M.active.layout_state) then
 		pcall(M.close)
