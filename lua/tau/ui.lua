@@ -14,6 +14,19 @@ function M.open(opts)
 	local config = require("tau.config").get()
 	local state = require("tau.state")
 
+	if M._opening then
+		vim.wait(10000, function()
+			return not M._opening
+		end, 1)
+		if M._opening then
+			error("tau: chat UI did not finish opening in time")
+		end
+		return M.open(opts)
+	end
+	if M.active and not layout.is_open(M.active.layout_state) then
+		pcall(M.close)
+	end
+
 	if M.active and layout.is_open(M.active.layout_state) then
 		if opts.resume then
 			M.active.tau_tab_id = vim.api.nvim_get_current_tabpage()
@@ -36,178 +49,186 @@ function M.open(opts)
 		return M.active
 	end
 
-	local session
-	if opts.resume then
-		session = state.get_session()
-		if not session then
+	M._opening = true
+	local open_ok, open_result = pcall(function()
+		local session
+		if opts.resume then
+			session = state.get_session()
+			if not session then
+				require("tau").new_session({ silent = true })
+				session = state.get_session()
+			end
+		else
 			require("tau").new_session({ silent = true })
 			session = state.get_session()
 		end
-	else
-		require("tau").new_session({ silent = true })
-		session = state.get_session()
-	end
 
-	history.setup_highlights()
+		history.setup_highlights()
 
-	local layout_mode = opts.layout or config.layout.default
-	local layout_state
-	if layout_mode == "float" then
-		layout_state = layout.create_float(config)
-	else
-		layout_state = layout.create_side(config)
-	end
-
-	local hist_buf = history.create_buffer()
-	local prompt_buf = prompt.create_buffer()
-
-	vim.api.nvim_win_set_buf(layout_state.history, hist_buf)
-	vim.api.nvim_win_set_buf(layout_state.prompt, prompt_buf)
-
-	pcall(function()
-		vim.wo[layout_state.history].winfixbuf = true
-		vim.wo[layout_state.prompt].winfixbuf = true
-		if layout_state.main and vim.api.nvim_win_is_valid(layout_state.main) then
-			vim.wo[layout_state.main].winfixbuf = true
+		local layout_mode = opts.layout or config.layout.default
+		local layout_state
+		if layout_mode == "float" then
+			layout_state = layout.create_float(config)
+		else
+			layout_state = layout.create_side(config)
 		end
-	end)
 
-	vim.wo[layout_state.history].wrap = true
-	vim.wo[layout_state.history].linebreak = true
-	vim.wo[layout_state.history].cursorline = false
-	vim.wo[layout_state.history].number = false
-	vim.wo[layout_state.history].relativenumber = false
+		local hist_buf = history.create_buffer()
+		local prompt_buf = prompt.create_buffer()
 
-	vim.wo[layout_state.prompt].wrap = true
-	vim.wo[layout_state.prompt].number = false
-	vim.wo[layout_state.prompt].relativenumber = false
+		vim.api.nvim_win_set_buf(layout_state.history, hist_buf)
+		vim.api.nvim_win_set_buf(layout_state.prompt, prompt_buf)
 
-	local function get_info_str()
-		return require("tau.session_display").winbar_text(session)
-	end
-
-	if config.layout.side.panels.history.winbar then
-		vim.wo[layout_state.history].winbar = " History " .. get_info_str()
-	end
-	if config.layout.side.panels.prompt.winbar then
-		vim.wo[layout_state.prompt].winbar = " Prompt " .. get_info_str()
-	end
-
-	history.refresh(hist_buf, session, config)
-	history.scroll_to_bottom(hist_buf, layout_state.history)
-
-	vim.keymap.set("n", "i", function()
-		layout.focus_prompt(layout_state)
-		vim.cmd("startinsert")
-	end, { buffer = hist_buf, silent = true, desc = "Focus prompt and insert" })
-
-	vim.keymap.set("n", "a", function()
-		layout.focus_prompt(layout_state)
-		vim.cmd("startinsert")
-	end, { buffer = hist_buf, silent = true, desc = "Focus prompt and insert" })
-
-	vim.keymap.set("n", "o", function()
-		layout.focus_prompt(layout_state)
-		vim.cmd("startinsert")
-	end, { buffer = hist_buf, silent = true, desc = "Focus prompt and insert" })
-
-	vim.keymap.set("n", "<CR>", function()
-		layout.focus_prompt(layout_state)
-	end, { buffer = hist_buf, silent = true, desc = "Focus prompt" })
-
-	prompt.set_keymaps(prompt_buf, {
-		on_submit = function(text)
-			M.on_submit(text)
-		end,
-		on_close = function()
-			M.close()
-		end,
-		on_focus_history = function()
-			layout.focus_history(layout_state)
-		end,
-		on_zen = function()
-			zen.toggle()
-		end,
-	})
-
-	prompt.set_completefunc(prompt_buf)
-
-	local function is_tau_win(win)
-		if not M.active then
-			return false
-		end
-		local ls = M.active.layout_state
-		return win == ls.history or win == ls.prompt
-	end
-
-	local function find_alt_win()
-		for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-			if vim.api.nvim_win_is_valid(win) and not is_tau_win(win) then
-				return win
+		pcall(function()
+			vim.wo[layout_state.history].winfixbuf = true
+			vim.wo[layout_state.prompt].winfixbuf = true
+			if layout_state.main and vim.api.nvim_win_is_valid(layout_state.main) then
+				vim.wo[layout_state.main].winfixbuf = true
 			end
+		end)
+
+		vim.wo[layout_state.history].wrap = true
+		vim.wo[layout_state.history].linebreak = true
+		vim.wo[layout_state.history].cursorline = false
+		vim.wo[layout_state.history].number = false
+		vim.wo[layout_state.history].relativenumber = false
+
+		vim.wo[layout_state.prompt].wrap = true
+		vim.wo[layout_state.prompt].number = false
+		vim.wo[layout_state.prompt].relativenumber = false
+
+		local function get_info_str()
+			return require("tau.session_display").winbar_text(session)
 		end
-		return nil
-	end
 
-	local augroup = vim.api.nvim_create_augroup("tau_refresh", { clear = true })
-	vim.api.nvim_create_autocmd("BufEnter", {
-		group = augroup,
-		callback = function()
-			if M.active then
-				M.refresh()
-			end
-		end,
-	})
+		if config.layout.side.panels.history.winbar then
+			vim.wo[layout_state.history].winbar = " History " .. get_info_str()
+		end
+		if config.layout.side.panels.prompt.winbar then
+			vim.wo[layout_state.prompt].winbar = " Prompt " .. get_info_str()
+		end
 
-	vim.api.nvim_create_autocmd("BufWinEnter", {
-		group = augroup,
-		callback = function(args)
+		history.refresh(hist_buf, session, config)
+		history.scroll_to_bottom(hist_buf, layout_state.history)
+
+		vim.keymap.set("n", "i", function()
+			layout.focus_prompt(layout_state)
+			vim.cmd("startinsert")
+		end, { buffer = hist_buf, silent = true, desc = "Focus prompt and insert" })
+
+		vim.keymap.set("n", "a", function()
+			layout.focus_prompt(layout_state)
+			vim.cmd("startinsert")
+		end, { buffer = hist_buf, silent = true, desc = "Focus prompt and insert" })
+
+		vim.keymap.set("n", "o", function()
+			layout.focus_prompt(layout_state)
+			vim.cmd("startinsert")
+		end, { buffer = hist_buf, silent = true, desc = "Focus prompt and insert" })
+
+		vim.keymap.set("n", "<CR>", function()
+			layout.focus_prompt(layout_state)
+		end, { buffer = hist_buf, silent = true, desc = "Focus prompt" })
+
+		prompt.set_keymaps(prompt_buf, {
+			on_submit = function(text)
+				M.on_submit(text)
+			end,
+			on_close = function()
+				M.close()
+			end,
+			on_focus_history = function()
+				layout.focus_history(layout_state)
+			end,
+			on_zen = function()
+				zen.toggle()
+			end,
+		})
+
+		prompt.set_completefunc(prompt_buf)
+
+		local function is_tau_win(win)
 			if not M.active then
-				return
-			end
-			local win = vim.api.nvim_get_current_win()
-			if not is_tau_win(win) then
-				return
-			end
-			local buf = args.buf
-			if vim.bo[buf].buftype ~= "" then
-				return
+				return false
 			end
 			local ls = M.active.layout_state
-			local tau_buf = win == ls.history and M.active.hist_buf or M.active.prompt_buf
-			if buf == tau_buf then
-				return
-			end
-			local alt = find_alt_win()
-			if not alt then
-				vim.cmd("wincmd p")
-				alt = vim.api.nvim_get_current_win()
-				if is_tau_win(alt) then
-					vim.cmd("vsplit")
-					alt = vim.api.nvim_get_current_win()
+			return win == ls.history or win == ls.prompt
+		end
+
+		local function find_alt_win()
+			for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+				if vim.api.nvim_win_is_valid(win) and not is_tau_win(win) then
+					return win
 				end
 			end
-			vim.api.nvim_win_set_buf(alt, buf)
-			vim.api.nvim_win_set_buf(win, tau_buf)
-			vim.api.nvim_set_current_win(alt)
-		end,
-	})
+			return nil
+		end
 
-	M.active = {
-		layout_state = layout_state,
-		hist_buf = hist_buf,
-		prompt_buf = prompt_buf,
-		session = session,
-		tau_tab_id = vim.api.nvim_get_current_tabpage(),
-		config = config,
-		is_busy = false,
-		augroup = augroup,
-	}
+		local augroup = vim.api.nvim_create_augroup("tau_refresh", { clear = true })
+		vim.api.nvim_create_autocmd("BufEnter", {
+			group = augroup,
+			callback = function()
+				if M.active then
+					M.refresh()
+				end
+			end,
+		})
 
-	M.refresh_winbar()
-	layout.focus_prompt(layout_state)
+		vim.api.nvim_create_autocmd("BufWinEnter", {
+			group = augroup,
+			callback = function(args)
+				if not M.active then
+					return
+				end
+				local win = vim.api.nvim_get_current_win()
+				if not is_tau_win(win) then
+					return
+				end
+				local buf = args.buf
+				if vim.bo[buf].buftype ~= "" then
+					return
+				end
+				local ls = M.active.layout_state
+				local tau_buf = win == ls.history and M.active.hist_buf or M.active.prompt_buf
+				if buf == tau_buf then
+					return
+				end
+				local alt = find_alt_win()
+				if not alt then
+					vim.cmd("wincmd p")
+					alt = vim.api.nvim_get_current_win()
+					if is_tau_win(alt) then
+						vim.cmd("vsplit")
+						alt = vim.api.nvim_get_current_win()
+					end
+				end
+				vim.api.nvim_win_set_buf(alt, buf)
+				vim.api.nvim_win_set_buf(win, tau_buf)
+				vim.api.nvim_set_current_win(alt)
+			end,
+		})
 
-	return M.active
+		M.active = {
+			layout_state = layout_state,
+			hist_buf = hist_buf,
+			prompt_buf = prompt_buf,
+			session = session,
+			tau_tab_id = vim.api.nvim_get_current_tabpage(),
+			config = config,
+			is_busy = false,
+			augroup = augroup,
+		}
+
+		M.refresh_winbar()
+		layout.focus_prompt(layout_state)
+
+		return M.active
+	end)
+	M._opening = false
+	if not open_ok then
+		error(open_result)
+	end
+	return open_result
 end
 
 function M.close()
